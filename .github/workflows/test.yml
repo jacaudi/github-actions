@@ -316,17 +316,19 @@ jobs:
             TOTAL=$(python3 -c "import json; d=json.load(open('.test-results/results.json')); print(d.get('summary',{}).get('total',0))" 2>/dev/null || echo "0")
             DURATION=$(python3 -c "import json; d=json.load(open('.test-results/results.json')); print(f\"{d.get('duration',0):.2f}s\")" 2>/dev/null || echo "")
           elif [[ "$FRAMEWORK" == "go" && -f ".test-results/output.txt" ]]; then
-            PASSED=$(grep -c "^--- PASS" .test-results/output.txt 2>/dev/null || echo "0")
-            FAILED=$(grep -c "^--- FAIL" .test-results/output.txt 2>/dev/null || echo "0")
-            SKIPPED=$(grep -c "^--- SKIP" .test-results/output.txt 2>/dev/null || echo "0")
+            # Note: Using || VAR=0 outside the subshell to avoid capturing both grep output AND echo output
+            PASSED=$(grep -c "^--- PASS" .test-results/output.txt 2>/dev/null) || PASSED=0
+            FAILED=$(grep -c "^--- FAIL" .test-results/output.txt 2>/dev/null) || FAILED=0
+            SKIPPED=$(grep -c "^--- SKIP" .test-results/output.txt 2>/dev/null) || SKIPPED=0
             TOTAL=$((PASSED + FAILED + SKIPPED))
-            DURATION=$(grep -oE "[0-9.]+s$" .test-results/output.txt | tail -1 || echo "")
+            DURATION=$(grep -oE "[0-9.]+s$" .test-results/output.txt 2>/dev/null | tail -1) || DURATION=""
           elif [[ -f ".test-results/output.txt" ]]; then
             # Generic parsing for npm/bun/other
             if grep -qE "Tests:.*passed" .test-results/output.txt; then
-              PASSED=$(grep -oE "[0-9]+ passed" .test-results/output.txt | grep -oE "[0-9]+" | head -1 || echo "0")
-              FAILED=$(grep -oE "[0-9]+ failed" .test-results/output.txt | grep -oE "[0-9]+" | head -1 || echo "0")
-              SKIPPED=$(grep -oE "[0-9]+ skipped" .test-results/output.txt | grep -oE "[0-9]+" | head -1 || echo "0")
+              # Note: Using || VAR=0 outside the subshell to avoid capturing both grep output AND echo output
+              PASSED=$(grep -oE "[0-9]+ passed" .test-results/output.txt | grep -oE "[0-9]+" | head -1 2>/dev/null) || PASSED=0
+              FAILED=$(grep -oE "[0-9]+ failed" .test-results/output.txt | grep -oE "[0-9]+" | head -1 2>/dev/null) || FAILED=0
+              SKIPPED=$(grep -oE "[0-9]+ skipped" .test-results/output.txt | grep -oE "[0-9]+" | head -1 2>/dev/null) || SKIPPED=0
               TOTAL=$((PASSED + FAILED + SKIPPED))
             fi
           fi
