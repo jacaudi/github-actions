@@ -164,7 +164,7 @@ jobs:
       # Go setup
       - name: Set up Go
         if: steps.detect.outputs.framework == 'go'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ inputs.go-version }}
 
