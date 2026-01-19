@@ -9,6 +9,7 @@ This directory contains example workflows demonstrating how to use the reusable 
 | [example-caller.yml](examples/example-caller.yml) | Basic usage of lint and test workflows |
 | [example-release-on-tag.yml](examples/example-release-on-tag.yml) | Trigger release pipeline on tag creation |
 | [example-uplift-release.yml](examples/example-uplift-release.yml) | Chain uplift and release in one workflow |
+| [example-go-sdk-release.yml](examples/example-go-sdk-release.yml) | **Complete Go SDK/library release pipeline** |
 
 ---
 
@@ -182,3 +183,164 @@ jobs:
       build-type: docker
       create-release: true
 ```
+
+---
+
+## Go SDK/Library Release Pipeline
+
+**File:** [`examples/example-go-sdk-release.yml`](examples/example-go-sdk-release.yml)
+
+A complete CI/CD pipeline for Go SDK or library releases with linting, testing, auto-tagging, and multi-platform binary builds via GoReleaser.
+
+### Pipeline Stages
+
+```
+┌─────────┐    ┌─────────┐    ┌─────────────┐    ┌─────────────┐
+│  Lint   │───▶│  Test   │───▶│   Version   │───▶│   Release   │
+│         │    │         │    │ (auto-tag)  │    │ (GoReleaser)│
+└─────────┘    └─────────┘    └─────────────┘    └─────────────┘
+     │              │               │                   │
+     ▼              ▼               ▼                   ▼
+ golangci-lint  go test +      Conventional        Multi-platform
+                coverage       Commits → tag       binaries + GH Release
+```
+
+### Quick Start
+
+```yaml
+name: Go SDK Release
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    uses: jacaudi/github-actions/.github/workflows/lint.yml@main
+    with:
+      go: true
+
+  test:
+    uses: jacaudi/github-actions/.github/workflows/test.yml@main
+    with:
+      framework: go
+      coverage: true
+      coverage-threshold: 70
+
+  version:
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: jacaudi/github-actions/.github/workflows/uplift.yml@main
+
+  release:
+    needs: [lint, test, version]
+    if: needs.version.outputs.released == 'true'
+    uses: jacaudi/github-actions/.github/workflows/release.yml@main
+    with:
+      release-tag: ${{ needs.version.outputs.version }}
+      run-tests: false
+      build-type: goreleaser
+      go-version: 'stable'
+      goreleaser-version: 'latest'
+      create-release: true
+    secrets:
+      goreleaser-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### Requirements
+
+1. **Go module** - `go.mod` in repository root
+2. **GoReleaser config** - `.goreleaser.yml` in repository root
+3. **Conventional Commits** - Use commit prefixes for auto-versioning
+
+### Example `.goreleaser.yml`
+
+```yaml
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^chore:'
+      - '^ci:'
+```
+
+### Workflow Behavior
+
+| Event | Lint | Test | Version | Release |
+|-------|------|------|---------|---------|
+| Pull Request | :white_check_mark: | :white_check_mark: | :x: Skipped | :x: Skipped |
+| Push to main (no version bump) | :white_check_mark: | :white_check_mark: | :white_check_mark: No tag | :x: Skipped |
+| Push to main (feat/fix commit) | :white_check_mark: | :white_check_mark: | :white_check_mark: New tag | :white_check_mark: GoReleaser |
+
+### Configuration Options
+
+#### Lint Job
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `go` | `false` | Enable Go linting |
+| `go-version` | `stable` | Go version to use |
+| `go-lint-version` | `latest` | golangci-lint version |
+| `go-lint-args` | `''` | Additional golangci-lint arguments |
+
+#### Test Job
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `framework` | `auto` | Test framework (`go` for Go projects) |
+| `go-version` | `stable` | Go version to use |
+| `coverage` | `false` | Enable coverage reporting |
+| `coverage-threshold` | `0` | Minimum coverage percentage |
+| `test-command` | `''` | Custom test command |
+
+#### Release Job (GoReleaser)
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `build-type` | `none` | Set to `goreleaser` |
+| `go-version` | `stable` | Go version for builds |
+| `goreleaser-version` | `latest` | GoReleaser version |
+| `goreleaser-config` | `.goreleaser.yml` | Config file path |
+| `goreleaser-args` | `''` | Additional GoReleaser args |
+
+### Release Artifacts
+
+GoReleaser automatically creates:
+- Multi-platform binaries (linux/darwin/windows, amd64/arm64)
+- Compressed archives (`.tar.gz`, `.zip` for Windows)
+- Checksums file
+- GitHub Release with changelog
