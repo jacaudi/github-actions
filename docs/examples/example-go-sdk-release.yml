@@ -1,0 +1,165 @@
+name: Go SDK Release Pipeline
+# Complete CI/CD pipeline for Go SDK/library releases
+#
+# Pipeline stages:
+# 1. Lint - Run golangci-lint on all Go code
+# 2. Test - Run go test with coverage
+# 3. Version - Auto-tag based on Conventional Commits (main branch only)
+# 4. Release - Build multi-platform binaries with GoReleaser and create GitHub release
+#
+# Requirements:
+# - Go module (go.mod in repository root)
+# - .goreleaser.yml configuration file
+# - Conventional Commits for automatic versioning
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  # ===========================================================================
+  # Stage 1: Lint
+  # ===========================================================================
+  lint:
+    name: Lint
+    uses: jacaudi/github-actions/.github/workflows/lint.yml@main
+    with:
+      go: true
+      go-version: 'stable'
+      # Optional: specify golangci-lint version
+      # go-lint-version: 'latest'
+      # Optional: custom golangci-lint args
+      # go-lint-args: '--timeout=5m'
+
+  # ===========================================================================
+  # Stage 2: Test
+  # ===========================================================================
+  test:
+    name: Test
+    uses: jacaudi/github-actions/.github/workflows/test.yml@main
+    with:
+      framework: go
+      go-version: 'stable'
+      coverage: true
+      coverage-threshold: 70
+      # Optional: custom test command
+      # test-command: 'go test -race -v ./...'
+
+  # ===========================================================================
+  # Stage 3: Version (auto-tag on main branch)
+  # ===========================================================================
+  version:
+    name: Version
+    needs: [lint, test]
+    # Only run on main branch pushes, not PRs
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    uses: jacaudi/github-actions/.github/workflows/uplift.yml@main
+    with:
+      dry-run: false
+      # Optional: use GitHub App for triggering downstream workflows
+      # use-github-app: true
+    # secrets:
+    #   app-id: ${{ secrets.APP_ID }}
+    #   app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+  # ===========================================================================
+  # Stage 4: Release (when new version is tagged)
+  # ===========================================================================
+  release:
+    name: Release
+    needs: [lint, test, version]
+    # Only run if a new version was created
+    if: needs.version.outputs.released == 'true'
+    uses: jacaudi/github-actions/.github/workflows/release.yml@main
+    with:
+      # Use the version tag from uplift
+      release-tag: ${{ needs.version.outputs.version }}
+
+      # Skip tests - already ran in test job
+      run-tests: false
+
+      # Release configuration
+      create-release: true
+      release-notes-auto: true
+      release-draft: false
+      release-prerelease: ${{ contains(needs.version.outputs.version, '-') }}
+
+      # GoReleaser build configuration
+      build-type: goreleaser
+      go-version: 'stable'
+      goreleaser-version: 'latest'
+      goreleaser-config: '.goreleaser.yml'
+      # goreleaser-args: '--skip=validate'  # Optional: additional args
+
+    secrets:
+      goreleaser-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===========================================================================
+  # Pipeline Summary
+  # ===========================================================================
+  summary:
+    name: Summary
+    needs: [lint, test, version, release]
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'push'
+    steps:
+      - name: Pipeline Summary
+        run: |
+          echo "## Go SDK Release Pipeline" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Stage results
+          echo "### Pipeline Stages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          # Lint
+          if [[ "${{ needs.lint.result }}" == "success" ]]; then
+            echo "| Lint | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Lint | :x: ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Test
+          if [[ "${{ needs.test.result }}" == "success" ]]; then
+            echo "| Test | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Test | :x: ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Version
+          RELEASED="${{ needs.version.outputs.released }}"
+          VERSION="${{ needs.version.outputs.version }}"
+          if [[ "${{ needs.version.result }}" == "skipped" ]]; then
+            echo "| Version | :fast_forward: Skipped (PR) |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$RELEASED" == "true" ]]; then
+            echo "| Version | :label: ${VERSION} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Version | :information_source: No bump needed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Release
+          RELEASE_URL="${{ needs.release.outputs.release-url }}"
+          if [[ "${{ needs.release.result }}" == "skipped" ]]; then
+            echo "| Release | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
+          elif [[ -n "$RELEASE_URL" ]]; then
+            echo "| Release | :rocket: [Published](${RELEASE_URL}) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Release | :x: ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Release details
+          if [[ "$RELEASED" == "true" && -n "$RELEASE_URL" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Release Details" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version:** \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Release:** [View on GitHub](${RELEASE_URL})" >> $GITHUB_STEP_SUMMARY
+          fi
