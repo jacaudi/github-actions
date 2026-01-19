@@ -11,6 +11,7 @@ This directory contains example workflows demonstrating how to use the reusable 
 | [example-uplift-release.yml](examples/example-uplift-release.yml) | Chain uplift and release in one workflow |
 | [example-go-sdk-release.yml](examples/example-go-sdk-release.yml) | **Complete Go SDK/library release pipeline** |
 | [example-docker-helm-release.yml](examples/example-docker-helm-release.yml) | **Docker + Helm chart release pipeline** |
+| [example-self-release.yml](examples/example-self-release.yml) | **Self-release for workflows repositories** |
 
 ---
 
@@ -541,4 +542,119 @@ helm install my-release oci://ghcr.io/myorg/myapp --version 1.0.0
 helm install my-release oci://ghcr.io/myorg/myapp --version 1.0.0 \
   --set image.tag=1.0.0 \
   --set replicaCount=3
+```
+
+---
+
+## Self-Release Pipeline (Workflows Repository)
+
+**File:** [`examples/example-self-release.yml`](examples/example-self-release.yml)
+
+A lightweight CI/CD pipeline for repositories that contain only reusable GitHub Actions workflows. This pattern is what this repository uses to release itself ("dogfooding").
+
+### When to Use
+
+This pattern is ideal for:
+- Repositories containing only reusable workflows
+- GitHub Actions libraries with no build artifacts
+- Any repository that just needs versioning and changelog generation
+
+### Pipeline Stages
+
+```
+┌─────────┐    ┌─────────────┐    ┌─────────────┐
+│  Lint   │───▶│   Version   │───▶│   Release   │
+│  YAML   │    │ (auto-tag)  │    │ (changelog) │
+└─────────┘    └─────────────┘    └─────────────┘
+     │               │                   │
+     ▼               ▼                   ▼
+  yamllint      Conventional        GitHub Release
+                Commits → tag       with changelog
+```
+
+### Quick Start
+
+```yaml
+name: CI/CD
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    uses: jacaudi/github-actions/.github/workflows/lint.yml@main
+    with:
+      yaml: true
+
+  version:
+    needs: [lint]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: jacaudi/github-actions/.github/workflows/uplift.yml@main
+
+  release:
+    needs: [lint, version]
+    if: needs.version.outputs.released == 'true'
+    uses: jacaudi/github-actions/.github/workflows/release.yml@main
+    with:
+      build-type: none
+      run-tests: false
+      create-release: true
+      release-tag: ${{ needs.version.outputs.version }}
+```
+
+### Workflow Behavior
+
+| Event | Lint | Version | Release |
+|-------|------|---------|---------|
+| Pull Request | :white_check_mark: | :x: Skipped | :x: Skipped |
+| Push to main (no version bump) | :white_check_mark: | :white_check_mark: No tag | :x: Skipped |
+| Push to main (feat/fix commit) | :white_check_mark: | :white_check_mark: New tag | :rocket: GitHub Release |
+
+### Key Configuration
+
+| Input | Value | Description |
+|-------|-------|-------------|
+| `build-type` | `none` | No build artifacts needed |
+| `run-tests` | `false` | No tests for workflow-only repos |
+| `create-release` | `true` | Create GitHub Release |
+| `release-notes-auto` | `true` | Generate changelog from commits |
+
+### GitHub Release Content
+
+The release includes:
+- Automatically generated changelog from Conventional Commits
+- Version tag reference for consumers
+
+### Referencing Released Workflows
+
+After a release, consumers can pin to specific versions:
+
+```yaml
+# Pin to specific version (recommended for stability)
+uses: your-org/github-actions/.github/workflows/lint.yml@v1.2.0
+
+# Pin to major version (gets minor/patch updates)
+uses: your-org/github-actions/.github/workflows/lint.yml@v1
+
+# Use latest (not recommended for production)
+uses: your-org/github-actions/.github/workflows/lint.yml@main
+```
+
+### Optional: Notify Downstream
+
+Add webhook notification to trigger Renovate or other tools after release:
+
+```yaml
+notify:
+  needs: [version, release]
+  if: needs.version.outputs.released == 'true'
+  uses: jacaudi/github-actions/.github/workflows/webhook.yml@main
+  with:
+    trigger-workflow: true
+    trigger-repo: ${{ github.repository_owner }}/renovate-config
+    trigger-workflow-id: 'renovate.yml'
+    release-tag: ${{ needs.version.outputs.version }}
+  secrets:
+    github-token: ${{ secrets.RENOVATE_TRIGGER_TOKEN }}
 ```
