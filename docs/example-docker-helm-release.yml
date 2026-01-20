@@ -20,11 +20,9 @@ on:
   push:
     branches:
       - main
-      - master
   pull_request:
     branches:
       - main
-      - master
 
 env:
   # Configure these for your project
@@ -66,7 +64,7 @@ jobs:
     name: Version
     needs: [lint, test]
     # Only run on main branch pushes, not PRs
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: jacaudi/github-actions/.github/workflows/uplift.yml@main
     with:
       dry-run: false
