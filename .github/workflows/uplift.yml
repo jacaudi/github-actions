@@ -93,8 +93,8 @@ jobs:
     permissions:
       contents: write
     outputs:
-      version: ${{ steps.uplift.outputs.version }}
-      previous-version: ${{ steps.uplift.outputs.previousVersion }}
+      version: ${{ steps.check-release.outputs.version }}
+      previous-version: ${{ steps.check-release.outputs.previous-version }}
       changelog: ${{ steps.uplift.outputs.changelog }}
       released: ${{ steps.check-release.outputs.released }}
     steps:
@@ -183,6 +183,13 @@ jobs:
           echo "Uplift arguments: ${ARGS}"
           echo "args=${ARGS}" >> $GITHUB_OUTPUT
 
+      - name: Capture current version
+        id: before
+        run: |
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1 || echo "")
+          echo "latest-tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "Current latest tag: ${LATEST_TAG:-none}"
+
       - name: Run Uplift
         id: uplift
         uses: gembaadvantage/uplift-action@v2
@@ -194,11 +201,24 @@ jobs:
       - name: Check if release was created
         id: check-release
         run: |
-          if [[ -n "${{ steps.uplift.outputs.version }}" ]]; then
+          # Fetch tags to get the latest
+          git fetch --tags 2>/dev/null || true
+
+          BEFORE_TAG="${{ steps.before.outputs.latest-tag }}"
+          AFTER_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1 || echo "")
+
+          echo "Before: ${BEFORE_TAG:-none}"
+          echo "After: ${AFTER_TAG:-none}"
+
+          if [[ -n "${AFTER_TAG}" ]] && [[ "${AFTER_TAG}" != "${BEFORE_TAG}" ]]; then
             echo "released=true" >> $GITHUB_OUTPUT
-            echo "New version created: ${{ steps.uplift.outputs.version }}"
+            echo "version=${AFTER_TAG}" >> $GITHUB_OUTPUT
+            echo "previous-version=${BEFORE_TAG}" >> $GITHUB_OUTPUT
+            echo "New version created: ${AFTER_TAG}"
           else
             echo "released=false" >> $GITHUB_OUTPUT
+            echo "version=" >> $GITHUB_OUTPUT
+            echo "previous-version=${BEFORE_TAG}" >> $GITHUB_OUTPUT
             echo "No new version created (no qualifying commits since last release)"
           fi
 
@@ -223,14 +243,14 @@ jobs:
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
 
-          if [[ -n "${{ steps.uplift.outputs.version }}" ]]; then
-            echo "| New Version | \`${{ steps.uplift.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${{ steps.check-release.outputs.version }}" ]]; then
+            echo "| New Version | \`${{ steps.check-release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| New Version | _None_ |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [[ -n "${{ steps.uplift.outputs.previousVersion }}" ]]; then
-            echo "| Previous Version | \`${{ steps.uplift.outputs.previousVersion }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${{ steps.check-release.outputs.previous-version }}" ]]; then
+            echo "| Previous Version | \`${{ steps.check-release.outputs.previous-version }}\` |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Previous Version | _None_ |" >> $GITHUB_STEP_SUMMARY
           fi
