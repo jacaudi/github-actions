@@ -127,7 +127,7 @@ jobs:
       low-count: ${{ steps.analyze.outputs.low-count }}
       scan-status: ${{ steps.result.outputs.status }}
     steps:
-      - name: Determine Image Reference
+      - name: Determine Image Reference and Registry
         id: image
         run: |
           IMAGE="${{ inputs.image-ref }}"
@@ -143,11 +143,33 @@ jobs:
           echo "ref=$IMAGE" >> $GITHUB_OUTPUT
           echo "Scanning image: $IMAGE"
 
+          # Determine registry from image ref
+          # Format: [registry/]repo:tag or registry/namespace/repo:tag
+          REGISTRY="docker.io"  # default
+          if [[ "$IMAGE" == *"/"* ]]; then
+            # Has a slash, might be registry/repo or namespace/repo
+            FIRST_PART=$(echo "$IMAGE" | cut -d/ -f1)
+            if [[ "$FIRST_PART" == *"."* ]]; then
+              # Contains a dot, likely a registry domain
+              REGISTRY="$FIRST_PART"
+            fi
+          fi
+
+          echo "registry=$REGISTRY" >> $GITHUB_OUTPUT
+          echo "Detected registry: $REGISTRY"
+
+          # Check if credentials are provided
+          HAS_CREDS="false"
+          if [[ -n "${{ secrets.registry-username }}" ]] && [[ -n "${{ secrets.registry-password }}" ]]; then
+            HAS_CREDS="true"
+          fi
+          echo "has-credentials=$HAS_CREDS" >> $GITHUB_OUTPUT
+
       - name: Log in to Registry
-        if: ${{ secrets.registry-username != '' && secrets.registry-password != '' }}
+        if: steps.image.outputs.has-credentials == 'true'
         uses: docker/login-action@v3
         with:
-          registry: ${{ contains(inputs.image-ref, '/') && (contains(inputs.image-ref, '.') && split(inputs.image-ref, '/')[0] || 'docker.io') || 'docker.io' }}
+          registry: ${{ steps.image.outputs.registry }}
           username: ${{ secrets.registry-username }}
           password: ${{ secrets.registry-password }}
 
