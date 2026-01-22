@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [](https://github.com/jacaudi/github-actions/releases/tag/) - 0001-01-01
 
+- [`93edcea`](https://github.com/jacaudi/github-actions/commit/93edcea078785babd2e6a2bf462a3c4ba4a6cc11) fix(ci): Rename Summary job to Pipeline Report
+
+## [](https://github.com/jacaudi/github-actions/releases/tag/) - 0001-01-01
+
 - [`32df7c3`](https://github.com/jacaudi/github-actions/commit/32df7c30a2d2bbdcb14a6a79b4f4b77767d20073) fix(release): Use correct JSON field name for release URL
 
 ## [](https://github.com/jacaudi/github-actions/releases/tag/) - 0001-01-01
