@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [](https://github.com/jacaudi/github-actions/releases/tag/) - 0001-01-01
 
+- [`32df7c3`](https://github.com/jacaudi/github-actions/commit/32df7c30a2d2bbdcb14a6a79b4f4b77767d20073) fix(release): Use correct JSON field name for release URL
+
+## [](https://github.com/jacaudi/github-actions/releases/tag/) - 0001-01-01
+
 - [`da69b04`](https://github.com/jacaudi/github-actions/commit/da69b0427e48b04f6e3eb42652e77e9021898d6b) fix: Configure Renovate to use fix(deps) for version bumps
 
 ## [](https://github.com/jacaudi/github-actions/releases/tag/) - 0001-01-01
