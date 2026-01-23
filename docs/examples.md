@@ -16,16 +16,42 @@ Copy and adapt these templates for your own projects.
 
 ### Conventional Commits
 
-go-semantic-release uses [Conventional Commits](https://www.conventionalcommits.org/) for automatic versioning:
+go-semantic-release uses [Conventional Commits](https://www.conventionalcommits.org/) for automatic versioning.
 
-| Prefix | Version Bump (≥1.0.0) | Example |
-|--------|----------------------|---------|
-| `feat:` | Minor (X.Y.0) | `feat: add user auth` |
-| `fix:` | Patch (X.Y.Z) | `fix: resolve timeout` |
-| `feat!:` | **Major (X.0.0)** | `feat!: redesign API` |
-| `fix!:` | **Major (X.0.0)** | `fix!: breaking bugfix` |
+**Version bumping behavior differs based on whether you're in initial development (0.x.x) or stable release (≥1.0.0):**
 
-**Note:** During initial development (0.x.x versions), `feat!` bumps minor not major (per semver spec).
+| Commit Type | Version Bump (0.x.x) | Version Bump (≥1.0.0) | Example Commit |
+|-------------|---------------------|----------------------|----------------|
+| `feat:` | Minor (0.X.0) | Minor (x.Y.0) | `feat: add user auth` |
+| `fix:` | Patch (0.0.X) | Patch (x.y.Z) | `fix: resolve timeout` |
+| `feat!:` | **Minor (0.X.0)** | **Major (X.0.0)** | `feat!: redesign API` |
+| `fix!:` | **Minor (0.X.0)** | **Major (X.0.0)** | `fix!: breaking bugfix` |
+| `chore:`, `docs:`, etc. | Patch (0.0.X) | Patch (x.y.Z) | `chore: update deps` |
+
+**Key Points:**
+- **0.x.x versions:** Breaking changes (`feat!`, `fix!`) bump **minor**, not major (per [semver spec #4](https://semver.org/#spec-item-4))
+- **≥1.0.0 versions:** Breaking changes bump **major** as expected
+- The `!` suffix or `BREAKING CHANGE:` footer marks breaking changes
+
+#### Graduating to v1.0.0
+
+When your project is ready for stable release, you have two options:
+
+**Option 1: Disable initial development mode**
+```yaml
+release:
+  uses: jacaudi/github-actions/.github/workflows/semantic-release.yml@main
+  with:
+    allow-initial-development-versions: false  # Enforces ≥1.0.0
+```
+
+**Option 2: Manually create v1.0.0 tag**
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+After reaching v1.0.0, all future `feat!` commits will correctly bump major version.
 
 ### GitHub App Token
 

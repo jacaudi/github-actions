@@ -392,15 +392,39 @@ permissions:
 
 **Conventional Commits:**
 
-go-semantic-release uses Conventional Commits to determine version bumps:
+go-semantic-release uses [Conventional Commits](https://www.conventionalcommits.org/) to determine version bumps. **Version bumping behavior differs based on whether you're in initial development (0.x.x) or stable release (≥1.0.0):**
 
-| Commit Type | Version Bump (0.x.x) | Version Bump (≥1.0.0) |
-|-------------|---------------------|----------------------|
-| `feat:` | Minor (0.x.0) | Minor (x.y.0) |
-| `fix:` | Patch (0.0.x) | Patch (x.y.z) |
-| `feat!:` | **Minor (0.x.0)** | **Major (x.0.0)** |
-| `fix!:` | **Minor (0.x.0)** | **Major (x.0.0)** |
-| `chore:`, `docs:`, `ci:` | No release | No release |
+| Commit Type | Version Bump (0.x.x) | Version Bump (≥1.0.0) | Example |
+|-------------|---------------------|----------------------|---------|
+| `feat:` | Minor (0.X.0) | Minor (x.Y.0) | `feat: add user auth` |
+| `fix:` | Patch (0.0.X) | Patch (x.y.Z) | `fix: resolve timeout` |
+| `feat!:` | **Minor (0.X.0)** | **Major (X.0.0)** | `feat!: redesign API` |
+| `fix!:` | **Minor (0.X.0)** | **Major (X.0.0)** | `fix!: breaking bugfix` |
+| `chore:`, `docs:`, `ci:` | Patch (0.0.X) | Patch (x.y.Z) | `chore: update deps` |
+
+**Key Points:**
+- During 0.x.x (initial development), breaking changes (`feat!`, `fix!`) bump **minor**, not major (per [semver spec #4](https://semver.org/#spec-item-4))
+- After ≥1.0.0 (stable), breaking changes bump **major** as expected
+- The `!` suffix or `BREAKING CHANGE:` footer marks breaking changes
+- Set `allow-initial-development-versions: false` to enforce versions ≥1.0.0
+
+**Graduating to v1.0.0:**
+
+When ready for stable release:
+
+1. **Disable initial development mode:**
+   ```yaml
+   release:
+     uses: jacaudi/github-actions/.github/workflows/semantic-release.yml@main
+     with:
+       allow-initial-development-versions: false  # Enforces ≥1.0.0
+   ```
+
+2. **Or manually create v1.0.0:**
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
 
 **Configuration (.semrelrc):**
 

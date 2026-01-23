@@ -49,6 +49,53 @@ See [docs/workflows.md](docs/workflows.md) for detailed workflow documentation.
 | `APP_ID` | semantic-release | GitHub App ID for triggering downstream workflows |
 | `APP_PRIVATE_KEY` | semantic-release | GitHub App private key |
 
+## Versioning
+
+This repository uses [Semantic Versioning](https://semver.org/) with go-semantic-release based on [Conventional Commits](https://www.conventionalcommits.org/).
+
+### Initial Development (0.x.x)
+
+During initial development (versions < 1.0.0), the project follows semver spec #4:
+> "Major version zero (0.y.z) is for initial development. Anything MAY change at any time."
+
+| Commit Type | Version Bump | Example |
+|-------------|--------------|---------|
+| `feat:` | Minor (0.x.0) | 0.1.5 → 0.2.0 |
+| `fix:` | Patch (0.0.x) | 0.1.5 → 0.1.6 |
+| `feat!:` or `fix!:` | **Minor (0.x.0)** | 0.1.5 → 0.2.0 |
+
+**Note:** Breaking changes (`feat!`, `fix!`) bump minor, not major, during 0.x.x versions.
+
+### Stable Releases (≥1.0.0)
+
+After reaching 1.0.0, breaking changes bump the major version:
+
+| Commit Type | Version Bump | Example |
+|-------------|--------------|---------|
+| `feat:` | Minor (x.Y.0) | 1.2.3 → 1.3.0 |
+| `fix:` | Patch (x.y.Z) | 1.2.3 → 1.2.4 |
+| `feat!:` or `fix!:` | **Major (X.0.0)** | 1.2.3 → 2.0.0 |
+
+### Graduating to v1.0.0
+
+To signal your project is ready for stable release:
+
+**Option 1:** Disable initial development mode in your workflow:
+```yaml
+release:
+  uses: jacaudi/github-actions/.github/workflows/semantic-release.yml@main
+  with:
+    allow-initial-development-versions: false
+```
+
+**Option 2:** Manually create the v1.0.0 tag:
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+See [docs/examples.md](docs/examples.md) for more details on Conventional Commits.
+
 ## License
 
 MIT
