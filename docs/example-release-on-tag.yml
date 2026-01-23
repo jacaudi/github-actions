@@ -1,7 +1,8 @@
-# Release on Tag: Triggers when v* tag is pushed
-# Note: Tags created by GITHUB_TOKEN don't trigger workflows.
-# Use example-uplift-release.yml instead for automated releases.
-name: Release
+# Release on Tag: Triggers when v* tag is pushed manually
+# Note: This is for manual tagging workflows. For automated versioning,
+# use example-semantic-release.yml instead.
+# Requirements (for Go): .goreleaser.yml
+name: Release on Tag
 
 on:
   push:
@@ -10,9 +11,12 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-*'
 
 jobs:
-  release:
-    uses: jacaudi/github-actions/.github/workflows/release.yml@main
-    with:
-      run-tests: true
-      create-release: true
-      build-type: none  # or: docker, goreleaser
+  # For Go projects with GoReleaser
+  goreleaser:
+    uses: jacaudi/github-actions/.github/workflows/goreleaser.yml@main
+
+  # For Docker projects
+  # docker:
+  #   uses: jacaudi/github-actions/.github/workflows/docker-build.yml@main
+  #   with:
+  #     image-name: ${{ github.repository }}
