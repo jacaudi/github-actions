@@ -48,6 +48,8 @@ jobs:
       helm-chart-path: 'charts/'
 
       fail-fast: true  # Stop on first failure
+      upload-artifact: true  # Upload lint results as artifact
+      artifact-name: 'lint-results'
 ```
 
 **Inputs:**
@@ -73,6 +75,9 @@ jobs:
 | `helm-args` | string | `''` | Additional helm lint arguments |
 | `working-directory` | string | `'.'` | Working directory for all commands |
 | `fail-fast` | boolean | `true` | Stop on first linter failure |
+| `upload-artifact` | boolean | `true` | Upload lint results as artifact |
+| `artifact-name` | string | `'lint-results'` | Name for lint result artifacts |
+| `artifact-retention-days` | number | `7` | Days to retain lint artifacts |
 
 **Outputs:**
 
@@ -101,11 +106,11 @@ jobs:
   test:
     uses: jacaudi/github-actions/.github/workflows/test.yml@main
     with:
-      framework: 'auto'  # auto-detects: pytest, go, npm, bun
+      test-framework: 'auto'  # auto-detects: pytest, go, npm, bun
       coverage: true
       coverage-threshold: 80
       timeout-minutes: 30
-      artifact-name: 'test-results'
+      artifact-name: 'test-results'  # Uploads .test-results/, coverage/, htmlcov/
 ```
 
 **Custom Test Command:**
@@ -124,13 +129,14 @@ jobs:
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
 | `test-command` | string | `''` | Custom test command (overrides framework) |
-| `framework` | string | `'auto'` | Test framework: auto, pytest, go, npm, bun, custom |
+| `test-framework` | string | `'auto'` | Test framework: auto, pytest, go, npm, bun, custom |
 | `python-version` | string | `'3.12'` | Python version for pytest |
 | `go-version` | string | `'stable'` | Go version for go test |
 | `node-version` | string | `'20'` | Node.js version for npm/bun |
 | `coverage` | boolean | `false` | Enable code coverage collection |
 | `coverage-threshold` | number | `0` | Minimum coverage percentage (0 to disable) |
 | `test-args` | string | `''` | Additional test arguments |
+| `test-packages` | string | `'./...'` | Package pattern to test for Go |
 | `working-directory` | string | `'.'` | Working directory for tests |
 | `install-dependencies` | boolean | `true` | Install dependencies before testing |
 | `timeout-minutes` | number | `30` | Timeout for test execution |
