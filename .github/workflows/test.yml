@@ -476,6 +476,7 @@ jobs:
             ${{ inputs.working-directory == '.' && format('{0}/htmlcov/', github.workspace) || format('{0}/{1}/htmlcov/', github.workspace, inputs.working-directory) }}
           retention-days: ${{ inputs.artifact-retention-days }}
           if-no-files-found: ignore
+          include-hidden-files: true
 
       # Fail if tests failed and fail-on-error is true
       - name: Check Results

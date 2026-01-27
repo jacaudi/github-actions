@@ -302,6 +302,7 @@ jobs:
           path: ${{ inputs.working-directory == '.' && format('{0}/.lint-results/', github.workspace) || format('{0}/{1}/.lint-results/', github.workspace, inputs.working-directory) }}
           retention-days: ${{ inputs.artifact-retention-days }}
           if-no-files-found: ignore
+          include-hidden-files: true
 
       # Generate Summary
       - name: Generate Summary
