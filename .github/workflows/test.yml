@@ -453,9 +453,9 @@ jobs:
         with:
           name: ${{ inputs.artifact-name }}
           path: |
-            ${{ inputs.working-directory != '.' && format('{0}/.test-results/', inputs.working-directory) || '.test-results/' }}
-            ${{ inputs.working-directory != '.' && format('{0}/coverage/', inputs.working-directory) || 'coverage/' }}
-            ${{ inputs.working-directory != '.' && format('{0}/htmlcov/', inputs.working-directory) || 'htmlcov/' }}
+            ${{ github.workspace }}/${{ inputs.working-directory }}/.test-results/
+            ${{ github.workspace }}/${{ inputs.working-directory }}/coverage/
+            ${{ github.workspace }}/${{ inputs.working-directory }}/htmlcov/
           retention-days: ${{ inputs.artifact-retention-days }}
           if-no-files-found: ignore
 
