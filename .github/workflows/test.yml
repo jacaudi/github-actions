@@ -446,6 +446,24 @@ jobs:
           echo "failed=$FAILED" >> $GITHUB_OUTPUT
           echo "total=$TOTAL" >> $GITHUB_OUTPUT
 
+      # Debug: Show paths before upload
+      - name: Debug artifact paths
+        if: always() && inputs.artifact-name != ''
+        run: |
+          echo "=== Debug Info ==="
+          echo "pwd: $(pwd)"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "inputs.working-directory: ${{ inputs.working-directory }}"
+          echo ""
+          echo "Looking for .test-results in current dir:"
+          ls -la .test-results/ 2>/dev/null || echo "Not found in pwd"
+          echo ""
+          echo "Looking for .test-results in GITHUB_WORKSPACE:"
+          ls -la "$GITHUB_WORKSPACE/.test-results/" 2>/dev/null || echo "Not found in GITHUB_WORKSPACE"
+          echo ""
+          echo "Full find for .test-results:"
+          find "$GITHUB_WORKSPACE" -type d -name ".test-results" 2>/dev/null || echo "Not found anywhere"
+
       # Upload test artifacts
       - name: Upload Test Artifacts
         if: always() && inputs.artifact-name != ''
