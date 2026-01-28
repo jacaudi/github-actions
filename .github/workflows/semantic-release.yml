@@ -51,6 +51,11 @@ on:
         required: false
         type: string
         default: ''
+      validate-config:
+        description: 'Validate .semrelrc JSON syntax before release'
+        required: false
+        type: boolean
+        default: true
       runs-on:
         description: 'Runner label to use'
         required: false
@@ -138,6 +143,26 @@ jobs:
             echo ""
             echo "Existing version tags:"
             git tag -l 'v*' --sort=-v:refname | head -5 || true
+          fi
+
+      - name: Validate .semrelrc config
+        if: inputs.validate-config
+        run: |
+          # Determine which config file to validate
+          CONFIG_FILE="${{ inputs.config-file }}"
+          if [[ -z "${CONFIG_FILE}" ]]; then
+            CONFIG_FILE=".semrelrc"
+          fi
+
+          if [[ -f "${CONFIG_FILE}" ]]; then
+            echo "Validating ${CONFIG_FILE} JSON syntax..."
+            if ! jq empty "${CONFIG_FILE}" 2>&1; then
+              echo "::error::${CONFIG_FILE} contains invalid JSON. Note: go-semantic-release requires JSON format, not YAML."
+              exit 1
+            fi
+            echo "✓ ${CONFIG_FILE} is valid JSON"
+          else
+            echo "ℹ️ No config file found at ${CONFIG_FILE} (using defaults)"
           fi
 
       - name: Generate GitHub App Token
