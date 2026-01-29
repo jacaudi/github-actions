@@ -1,5 +1,5 @@
-name: 'Docker Build'
-description: 'Build and push multi-arch Docker images with QEMU, Buildx, and metadata generation'
+name: 'Docker Build (Deprecated)'
+description: 'DEPRECATED: Use the docker-build.yml reusable workflow instead. Builds Docker images with QEMU emulation.'
 
 inputs:
   registry:
