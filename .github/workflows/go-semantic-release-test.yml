@@ -119,7 +119,7 @@ jobs:
 
           if [[ "${{ steps.semrel.outputs.new_release_published }}" == "true" ]]; then
             echo ""
-            echo "✅ Version bump detected!"
+            echo "Version bump detected!"
             echo "From: ${LATEST_TAG}"
             echo "To: ${{ steps.semrel.outputs.new_release_version }}"
           fi

@@ -328,9 +328,9 @@ jobs:
           while IFS= read -r -d '' file; do
             CHECKED=$((CHECKED + 1))
             if ERROR=$(jq empty "$file" 2>&1); then
-              echo "✓ $file"
+              echo "OK: $file"
             else
-              echo "✗ $file"
+              echo "FAIL: $file"
               echo "  Error: $ERROR"
               FAILED=$((FAILED + 1))
               RESULTS=$(echo "$RESULTS" | jq --arg file "$file" --arg error "$ERROR" '. + [{"file": $file, "error": $error}]')

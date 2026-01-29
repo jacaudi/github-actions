@@ -160,9 +160,9 @@ jobs:
               echo "::error::${CONFIG_FILE} contains invalid JSON. Note: go-semantic-release requires JSON format, not YAML."
               exit 1
             fi
-            echo "✓ ${CONFIG_FILE} is valid JSON"
+            echo "${CONFIG_FILE} is valid JSON"
           else
-            echo "ℹ️ No config file found at ${CONFIG_FILE} (using defaults)"
+            echo "No config file found at ${CONFIG_FILE} (using defaults)"
           fi
 
       - name: Generate GitHub App Token
@@ -260,7 +260,7 @@ jobs:
             echo "new-release-minor-version=${{ steps.semrel.outputs.version_minor }}" >> $GITHUB_OUTPUT
             echo "new-release-patch-version=${{ steps.semrel.outputs.version_patch }}" >> $GITHUB_OUTPUT
 
-            echo "✅ New version released: ${VERSION_TAG}"
+            echo "New version released: ${VERSION_TAG}"
           else
             # No release created
             echo "new-release-published=false" >> $GITHUB_OUTPUT
@@ -271,7 +271,7 @@ jobs:
             echo "new-release-minor-version=" >> $GITHUB_OUTPUT
             echo "new-release-patch-version=" >> $GITHUB_OUTPUT
 
-            echo "ℹ️ No new version created (no qualifying commits since last release)"
+            echo "No new version created (no qualifying commits since last release)"
           fi
 
       - name: Generate Summary
