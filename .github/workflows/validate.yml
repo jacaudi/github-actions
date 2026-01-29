@@ -67,7 +67,7 @@ jobs:
 
             # Check that reusable workflows have proper on: workflow_call
             if grep -q "workflow_call:" "$file"; then
-              echo "  ✓ Reusable workflow detected"
+              echo "  - Reusable workflow detected"
             fi
 
             # Check for deprecated patterns
