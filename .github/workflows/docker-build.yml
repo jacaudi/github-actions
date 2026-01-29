@@ -399,7 +399,7 @@ jobs:
           echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
           echo "imageid=${DIGEST}" >> $GITHUB_OUTPUT
 
-          METADATA=$(docker buildx imagetools inspect "${TAG}" --format '{{json .}}')
+          METADATA=$(docker buildx imagetools inspect "${TAG}" --format '{{json .}}' | jq -c .)
           echo "metadata=${METADATA}" >> $GITHUB_OUTPUT
 
       - name: Generate Summary
