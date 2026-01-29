@@ -166,7 +166,7 @@ jobs:
 
 ## Docker Build Workflow
 
-Multi-architecture container image building with QEMU, BuildKit, and GHA caching. Automatically generates semantic version tags.
+Multi-architecture container image building with native runners for fast parallel builds. Supports linux/amd64 and linux/arm64 platforms. Automatically generates semantic version tags.
 
 **Usage:**
 
@@ -201,6 +201,32 @@ jobs:
         BUILD_DATE=${{ github.event.head_commit.timestamp }}
 ```
 
+**Single Platform (AMD64 only):**
+
+```yaml
+jobs:
+  docker:
+    uses: jacaudi/github-actions/.github/workflows/docker-build.yml@main
+    with:
+      image-name: 'myorg/myapp'
+      platforms: 'linux/amd64'
+      push: true
+```
+
+**Single Platform (ARM64 only):**
+
+```yaml
+jobs:
+  docker:
+    uses: jacaudi/github-actions/.github/workflows/docker-build.yml@main
+    with:
+      image-name: 'myorg/myapp'
+      platforms: 'linux/arm64'
+      push: true
+```
+
+> **Performance Note:** Multi-arch builds run on native runners in parallel, providing 3-5x faster builds compared to QEMU emulation.
+
 **Inputs:**
 
 | Input | Type | Default | Description |
@@ -217,8 +243,9 @@ jobs:
 | `cache-from` | string | `'type=gha'` | Cache sources |
 | `cache-to` | string | `'type=gha,mode=max'` | Cache destinations |
 | `provenance` | boolean | `true` | Generate provenance attestation |
+| `amd64-runner` | string | `'ubuntu-24.04'` | Runner label for AMD64 builds |
+| `arm64-runner` | string | `'ubuntu-24.04-arm'` | Runner label for ARM64 builds |
 | `registry-username` | string | `''` | Registry username |
-| `runs-on` | string | `'ubuntu-latest'` | Runner label |
 
 **Secrets:**
 
