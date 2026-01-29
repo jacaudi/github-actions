@@ -638,5 +638,8 @@ jobs:
 ```yaml
 permissions:
   contents: read
+  packages: read          # For private GHCR images
   security-events: write  # For SARIF upload
 ```
+
+> **GHCR Authentication:** For private images on ghcr.io, the workflow automatically uses `GITHUB_TOKEN` for authentication. No additional configuration is required when scanning images in the same organization.
