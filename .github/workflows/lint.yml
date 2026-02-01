@@ -200,16 +200,15 @@ jobs:
           echo "Generated matrix: {\"linter\":$LINTERS}"
 
   lint:
-    name: Lint
+    name: Lint (${{ matrix.linter }})
+    needs: setup
+    if: needs.setup.outputs.has-linters == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: ${{ inputs.fail-fast }}
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     outputs:
-      python-status: ${{ steps.python-lint.outcome || 'skipped' }}
-      go-status: ${{ steps.go-lint.outcome || 'skipped' }}
-      shell-status: ${{ steps.shell-lint.outcome || 'skipped' }}
-      yaml-status: ${{ steps.yaml-lint.outcome || 'skipped' }}
-      helm-status: ${{ steps.helm-lint.outcome || 'skipped' }}
-      json-status: ${{ steps.json-lint.outcome || 'skipped' }}
-      overall-status: ${{ steps.summary.outputs.status }}
+      status: ${{ steps.run-linter.outputs.status }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -222,13 +221,13 @@ jobs:
 
       # Python Linting with Ruff
       - name: Set up Python
-        if: inputs.python
+        if: matrix.linter == 'python'
         uses: actions/setup-python@v6
         with:
           python-version: ${{ inputs.python-version }}
 
       - name: Install Ruff
-        if: inputs.python
+        if: matrix.linter == 'python'
         run: |
           if [[ -n "${{ inputs.ruff-version }}" ]]; then
             pip install ruff==${{ inputs.ruff-version }}
@@ -238,8 +237,8 @@ jobs:
 
       - name: Run Ruff
         id: python-lint
-        if: inputs.python
-        continue-on-error: ${{ !inputs.fail-fast }}
+        if: matrix.linter == 'python'
+        continue-on-error: true
         run: |
           echo "::group::Ruff Output"
           # Output JSON for artifacts and console for visibility
@@ -249,23 +248,23 @@ jobs:
 
       # Go Linting with golangci-lint
       - name: Set up Go
-        if: inputs.go
+        if: matrix.linter == 'go'
         uses: actions/setup-go@v6
         with:
           go-version: ${{ inputs.go-version }}
 
       - name: Run golangci-lint
         id: go-lint
-        if: inputs.go
+        if: matrix.linter == 'go'
         uses: golangci/golangci-lint-action@v9
-        continue-on-error: ${{ !inputs.fail-fast }}
+        continue-on-error: true
         with:
           version: ${{ inputs.golangci-lint-version }}
           args: ${{ inputs.golangci-lint-args }}
           working-directory: ${{ inputs.working-directory }}
 
       - name: Save golangci-lint JSON output
-        if: inputs.go && always()
+        if: matrix.linter == 'go' && always()
         continue-on-error: true
         run: |
           golangci-lint run --out-format json ${{ inputs.golangci-lint-args }} > .lint-results/golangci-lint.json 2>&1 || true
@@ -273,16 +272,16 @@ jobs:
       # Shell Linting with ShellCheck
       - name: Run ShellCheck
         id: shell-lint
-        if: inputs.shell
+        if: matrix.linter == 'shell'
         uses: ludeeus/action-shellcheck@2.0.0
-        continue-on-error: ${{ !inputs.fail-fast }}
+        continue-on-error: true
         with:
           version: ${{ inputs.shellcheck-version }}
           scandir: ${{ inputs.shellcheck-paths }}
           additional_files: ${{ inputs.shellcheck-args }}
 
       - name: Save ShellCheck JSON output
-        if: inputs.shell && always()
+        if: matrix.linter == 'shell' && always()
         continue-on-error: true
         run: |
           # Find shell scripts and run shellcheck with JSON output
@@ -291,13 +290,13 @@ jobs:
 
       # YAML Linting with yamllint
       - name: Install yamllint
-        if: inputs.yaml
+        if: matrix.linter == 'yaml'
         run: pip install yamllint
 
       - name: Run yamllint
         id: yaml-lint
-        if: inputs.yaml
-        continue-on-error: ${{ !inputs.fail-fast }}
+        if: matrix.linter == 'yaml'
+        continue-on-error: true
         run: |
           echo "::group::yamllint Output"
           if [[ -n "${{ inputs.yamllint-config }}" ]]; then
@@ -315,15 +314,15 @@ jobs:
 
       # Helm Linting
       - name: Set up Helm
-        if: inputs.helm
+        if: matrix.linter == 'helm'
         uses: azure/setup-helm@v4
         with:
           version: 'latest'
 
       - name: Run Helm lint
         id: helm-lint
-        if: inputs.helm
-        continue-on-error: ${{ !inputs.fail-fast }}
+        if: matrix.linter == 'helm'
+        continue-on-error: true
         run: |
           echo "::group::Helm Lint Output"
           # Handle both single chart and multiple charts in directory
@@ -350,8 +349,8 @@ jobs:
       # JSON Linting with jq
       - name: Run JSON lint
         id: json-lint
-        if: inputs.json
-        continue-on-error: ${{ !inputs.fail-fast }}
+        if: matrix.linter == 'json'
+        continue-on-error: true
         run: |
           echo "::group::JSON Lint Output"
 
@@ -391,113 +390,33 @@ jobs:
             exit 1
           fi
 
-      # Upload Lint Artifacts
-      - name: List lint results
+      # Set linter status based on which linter ran
+      - name: Set linter status
+        id: run-linter
         if: always()
         run: |
-          echo "Contents of .lint-results/:"
-          ls -la .lint-results/ 2>/dev/null || echo "Directory does not exist or is empty"
+          LINTER="${{ matrix.linter }}"
+          STATUS="skipped"
 
+          case "$LINTER" in
+            python) STATUS="${{ steps.python-lint.outcome }}" ;;
+            go) STATUS="${{ steps.go-lint.outcome }}" ;;
+            shell) STATUS="${{ steps.shell-lint.outcome }}" ;;
+            yaml) STATUS="${{ steps.yaml-lint.outcome }}" ;;
+            helm) STATUS="${{ steps.helm-lint.outcome }}" ;;
+            json) STATUS="${{ steps.json-lint.outcome }}" ;;
+          esac
+
+          echo "status=${STATUS:-skipped}" >> $GITHUB_OUTPUT
+          echo "Linter $LINTER status: ${STATUS:-skipped}"
+
+      # Upload Lint Artifacts
       - name: Upload Lint Artifacts
         if: always() && inputs.upload-artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ inputs.artifact-name }}
+          name: ${{ inputs.artifact-name }}-${{ matrix.linter }}
           path: ${{ inputs.working-directory == '.' && format('{0}/.lint-results/', github.workspace) || format('{0}/{1}/.lint-results/', github.workspace, inputs.working-directory) }}
           retention-days: ${{ inputs.artifact-retention-days }}
           if-no-files-found: ignore
           include-hidden-files: true
-
-      # Generate Summary
-      - name: Generate Summary
-        id: summary
-        if: always()
-        run: |
-          echo "## Lint Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Linter | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
-
-          OVERALL="success"
-
-          # Python
-          if [[ "${{ inputs.python }}" == "true" ]]; then
-            if [[ "${{ steps.python-lint.outcome }}" == "success" ]]; then
-              echo "| :snake: Python (ruff) | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| :snake: Python (ruff) | :x: Failed |" >> $GITHUB_STEP_SUMMARY
-              OVERALL="failure"
-            fi
-          else
-            echo "| :snake: Python (ruff) | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Go
-          if [[ "${{ inputs.go }}" == "true" ]]; then
-            if [[ "${{ steps.go-lint.outcome }}" == "success" ]]; then
-              echo "| :blue_square: Go (golangci-lint) | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| :blue_square: Go (golangci-lint) | :x: Failed |" >> $GITHUB_STEP_SUMMARY
-              OVERALL="failure"
-            fi
-          else
-            echo "| :blue_square: Go (golangci-lint) | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Shell
-          if [[ "${{ inputs.shell }}" == "true" ]]; then
-            if [[ "${{ steps.shell-lint.outcome }}" == "success" ]]; then
-              echo "| :shell: Shell (shellcheck) | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| :shell: Shell (shellcheck) | :x: Failed |" >> $GITHUB_STEP_SUMMARY
-              OVERALL="failure"
-            fi
-          else
-            echo "| :shell: Shell (shellcheck) | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # YAML
-          if [[ "${{ inputs.yaml }}" == "true" ]]; then
-            if [[ "${{ steps.yaml-lint.outcome }}" == "success" ]]; then
-              echo "| :page_facing_up: YAML (yamllint) | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| :page_facing_up: YAML (yamllint) | :x: Failed |" >> $GITHUB_STEP_SUMMARY
-              OVERALL="failure"
-            fi
-          else
-            echo "| :page_facing_up: YAML (yamllint) | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Helm
-          if [[ "${{ inputs.helm }}" == "true" ]]; then
-            if [[ "${{ steps.helm-lint.outcome }}" == "success" ]]; then
-              echo "| :wheel_of_dharma: Helm | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| :wheel_of_dharma: Helm | :x: Failed |" >> $GITHUB_STEP_SUMMARY
-              OVERALL="failure"
-            fi
-          else
-            echo "| :wheel_of_dharma: Helm | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # JSON
-          if [[ "${{ inputs.json }}" == "true" ]]; then
-            if [[ "${{ steps.json-lint.outcome }}" == "success" ]]; then
-              echo "| :card_file_box: JSON (jq) | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| :card_file_box: JSON (jq) | :x: Failed |" >> $GITHUB_STEP_SUMMARY
-              OVERALL="failure"
-            fi
-          else
-            echo "| :card_file_box: JSON (jq) | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Overall Status:** $(if [[ "$OVERALL" == "success" ]]; then echo ':white_check_mark: All checks passed'; else echo ':x: Some checks failed'; fi)" >> $GITHUB_STEP_SUMMARY
-
-          echo "status=$OVERALL" >> $GITHUB_OUTPUT
-
-          # Fail the job if any linter failed
-          if [[ "$OVERALL" == "failure" ]]; then
-            exit 1
-          fi
