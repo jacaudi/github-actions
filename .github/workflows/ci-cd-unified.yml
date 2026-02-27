@@ -76,6 +76,11 @@ on:
         required: false
         type: string
         default: ''
+      setup-command:
+        description: 'Command(s) to run after dependency install but before tests (runs from repo root)'
+        required: false
+        type: string
+        default: ''
 
       # Semantic release configuration
       run-release:
@@ -172,6 +177,7 @@ jobs:
     with:
       test-framework: ${{ inputs.test-framework }}
       test-command: ${{ inputs.test-command }}
+      setup-command: ${{ inputs.setup-command }}
       runs-on: ${{ inputs.runs-on }}
 
   # ===========================================================================

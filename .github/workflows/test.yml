@@ -59,6 +59,11 @@ on:
         required: false
         type: boolean
         default: true
+      setup-command:
+        description: 'Command(s) to run after dependency install but before tests (runs from repo root, not working-directory)'
+        required: false
+        type: string
+        default: ''
       timeout-minutes:
         description: 'Timeout for test execution in minutes'
         required: false
@@ -200,6 +205,14 @@ jobs:
       - name: Install Bun dependencies
         if: steps.detect.outputs.framework == 'bun' && inputs.install-dependencies
         run: bun install
+
+      # Run setup commands (from repo root, not working-directory)
+      - name: Run Setup Commands
+        if: inputs.setup-command != ''
+        working-directory: .
+        run: |
+          echo "Running setup commands..."
+          ${{ inputs.setup-command }}
 
       # Run tests
       - name: Run Tests
