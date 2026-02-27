@@ -156,6 +156,9 @@ on:
       overall-status:
         description: 'Overall lint result: success or failure'
         value: ${{ jobs.summary.outputs.overall-status }}
+      lint-report:
+        description: 'Combined JSON lint report with standardized schema'
+        value: ${{ jobs.summary.outputs.lint-report }}
 
 jobs:
   setup:
@@ -246,6 +249,47 @@ jobs:
           ruff check ${{ inputs.ruff-args }}
           echo "::endgroup::"
 
+      - name: Generate Python lint report
+        if: matrix.linter == 'python' && always()
+        continue-on-error: true
+        run: |
+          RUFF_VERSION=$(ruff --version 2>/dev/null | awk '{print $2}' || echo "unknown")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [[ -f .lint-results/ruff.json ]] && jq empty .lint-results/ruff.json 2>/dev/null; then
+            jq -n \
+              --arg linter "ruff" \
+              --arg version "$RUFF_VERSION" \
+              --arg timestamp "$TIMESTAMP" \
+              --arg status "${{ steps.python-lint.outcome }}" \
+              --slurpfile raw .lint-results/ruff.json '
+              ($raw[0] // []) as $issues |
+              {
+                linter: $linter,
+                version: $version,
+                timestamp: $timestamp,
+                status: $status,
+                summary: {
+                  errors: ([$issues[] | select(.code | startswith("E"))] | length),
+                  warnings: ([$issues[] | select(.code | startswith("E") | not)] | length),
+                  total: ($issues | length)
+                },
+                issues: [
+                  $issues[] | {
+                    file: .filename,
+                    line: .location.row,
+                    column: .location.column,
+                    severity: (if (.code | startswith("E")) then "error" else "warning" end),
+                    rule: .code,
+                    message: .message
+                  }
+                ]
+              }' > .lint-results/lint-report.json
+          else
+            jq -n --arg linter "ruff" --arg version "$RUFF_VERSION" --arg timestamp "$TIMESTAMP" --arg status "${{ steps.python-lint.outcome }}" \
+              '{linter: $linter, version: $version, timestamp: $timestamp, status: $status, summary: {errors: 0, warnings: 0, total: 0}, issues: []}' \
+              > .lint-results/lint-report.json
+          fi
+
       # Go Linting with golangci-lint
       - name: Set up Go
         if: matrix.linter == 'go'
@@ -269,6 +313,47 @@ jobs:
         run: |
           golangci-lint run --out-format json ${{ inputs.golangci-lint-args }} > .lint-results/golangci-lint.json 2>&1 || true
 
+      - name: Generate Go lint report
+        if: matrix.linter == 'go' && always()
+        continue-on-error: true
+        run: |
+          GC_VERSION=$(golangci-lint --version 2>/dev/null | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [[ -f .lint-results/golangci-lint.json ]] && jq empty .lint-results/golangci-lint.json 2>/dev/null; then
+            jq -n \
+              --arg linter "golangci-lint" \
+              --arg version "$GC_VERSION" \
+              --arg timestamp "$TIMESTAMP" \
+              --arg status "${{ steps.go-lint.outcome }}" \
+              --slurpfile raw .lint-results/golangci-lint.json '
+              (($raw[0].Issues // []) | map(select(. != null))) as $issues |
+              {
+                linter: $linter,
+                version: $version,
+                timestamp: $timestamp,
+                status: $status,
+                summary: {
+                  errors: ([$issues[] | select(.Severity == "error" or .Severity == null)] | length),
+                  warnings: ([$issues[] | select(.Severity == "warning")] | length),
+                  total: ($issues | length)
+                },
+                issues: [
+                  $issues[] | {
+                    file: .Pos.Filename,
+                    line: .Pos.Line,
+                    column: .Pos.Column,
+                    severity: (if .Severity == "warning" then "warning" else "error" end),
+                    rule: .FromLinter,
+                    message: .Text
+                  }
+                ]
+              }' > .lint-results/lint-report.json
+          else
+            jq -n --arg linter "golangci-lint" --arg version "$GC_VERSION" --arg timestamp "$TIMESTAMP" --arg status "${{ steps.go-lint.outcome }}" \
+              '{linter: $linter, version: $version, timestamp: $timestamp, status: $status, summary: {errors: 0, warnings: 0, total: 0}, issues: []}' \
+              > .lint-results/lint-report.json
+          fi
+
       # Shell Linting with ShellCheck
       - name: Run ShellCheck
         id: shell-lint
@@ -287,6 +372,47 @@ jobs:
           # Find shell scripts and run shellcheck with JSON output
           find ${{ inputs.shellcheck-paths }} -type f \( -name "*.sh" -o -name "*.bash" \) -print0 2>/dev/null | \
             xargs -0 shellcheck --format=json ${{ inputs.shellcheck-args }} > .lint-results/shellcheck.json 2>&1 || true
+
+      - name: Generate Shell lint report
+        if: matrix.linter == 'shell' && always()
+        continue-on-error: true
+        run: |
+          SC_VERSION=$(shellcheck --version 2>/dev/null | grep 'version:' | awk '{print $2}' || echo "unknown")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [[ -f .lint-results/shellcheck.json ]] && jq empty .lint-results/shellcheck.json 2>/dev/null; then
+            jq -n \
+              --arg linter "shellcheck" \
+              --arg version "$SC_VERSION" \
+              --arg timestamp "$TIMESTAMP" \
+              --arg status "${{ steps.shell-lint.outcome }}" \
+              --slurpfile raw .lint-results/shellcheck.json '
+              ($raw[0] // []) as $issues |
+              {
+                linter: $linter,
+                version: $version,
+                timestamp: $timestamp,
+                status: $status,
+                summary: {
+                  errors: ([$issues[] | select(.level == "error")] | length),
+                  warnings: ([$issues[] | select(.level == "warning")] | length),
+                  total: ($issues | length)
+                },
+                issues: [
+                  $issues[] | {
+                    file: .file,
+                    line: .line,
+                    column: .column,
+                    severity: .level,
+                    rule: ("SC" + (.code | tostring)),
+                    message: .message
+                  }
+                ]
+              }' > .lint-results/lint-report.json
+          else
+            jq -n --arg linter "shellcheck" --arg version "$SC_VERSION" --arg timestamp "$TIMESTAMP" --arg status "${{ steps.shell-lint.outcome }}" \
+              '{linter: $linter, version: $version, timestamp: $timestamp, status: $status, summary: {errors: 0, warnings: 0, total: 0}, issues: []}' \
+              > .lint-results/lint-report.json
+          fi
 
       # YAML Linting with yamllint
       - name: Install yamllint
@@ -311,6 +437,42 @@ jobs:
             yamllint ${{ inputs.yamllint-args }}
           fi
           echo "::endgroup::"
+
+      - name: Generate YAML lint report
+        if: matrix.linter == 'yaml' && always()
+        continue-on-error: true
+        run: |
+          YL_VERSION=$(yamllint --version 2>/dev/null | awk '{print $2}' || echo "unknown")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          ISSUES="[]"
+          ERRORS=0
+          WARNINGS=0
+          if [[ -f .lint-results/yamllint.txt ]]; then
+            while IFS= read -r line; do
+              # parsable format: file:line:col: [error|warning] message (rule)
+              if [[ "$line" =~ ^(.+):([0-9]+):([0-9]+):\ \[(error|warning)\]\ (.+)\ \((.+)\)$ ]]; then
+                FILE="${BASH_REMATCH[1]}"
+                LINE="${BASH_REMATCH[2]}"
+                COL="${BASH_REMATCH[3]}"
+                SEVERITY="${BASH_REMATCH[4]}"
+                MSG="${BASH_REMATCH[5]}"
+                RULE="${BASH_REMATCH[6]}"
+                ISSUES=$(echo "$ISSUES" | jq -c \
+                  --arg file "$FILE" --argjson line "$LINE" --argjson col "$COL" \
+                  --arg severity "$SEVERITY" --arg rule "$RULE" --arg msg "$MSG" \
+                  '. + [{file: $file, line: $line, column: $col, severity: $severity, rule: $rule, message: $msg}]')
+                if [[ "$SEVERITY" == "error" ]]; then ERRORS=$((ERRORS+1)); else WARNINGS=$((WARNINGS+1)); fi
+              fi
+            done < .lint-results/yamllint.txt
+          fi
+          TOTAL=$((ERRORS + WARNINGS))
+          jq -n \
+            --arg linter "yamllint" --arg version "$YL_VERSION" --arg timestamp "$TIMESTAMP" \
+            --arg status "${{ steps.yaml-lint.outcome }}" \
+            --argjson errors "$ERRORS" --argjson warnings "$WARNINGS" --argjson total "$TOTAL" \
+            --argjson issues "$ISSUES" \
+            '{linter: $linter, version: $version, timestamp: $timestamp, status: $status, summary: {errors: $errors, warnings: $warnings, total: $total}, issues: $issues}' \
+            > .lint-results/lint-report.json
 
       # Helm Linting
       - name: Set up Helm
@@ -345,6 +507,37 @@ jobs:
             fi
           fi
           echo "::endgroup::"
+
+      - name: Generate Helm lint report
+        if: matrix.linter == 'helm' && always()
+        continue-on-error: true
+        run: |
+          HELM_VERSION=$(helm version --short 2>/dev/null | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          ISSUES="[]"
+          ERRORS=0
+          WARNINGS=0
+          if [[ -f .lint-results/helm-lint.txt ]]; then
+            while IFS= read -r line; do
+              if [[ "$line" =~ ^\[ERROR\]\ (.+) ]]; then
+                MSG="${BASH_REMATCH[1]}"
+                ISSUES=$(echo "$ISSUES" | jq -c --arg msg "$MSG" '. + [{file: "", line: 0, column: 0, severity: "error", rule: "helm-lint", message: $msg}]')
+                ERRORS=$((ERRORS+1))
+              elif [[ "$line" =~ ^\[WARNING\]\ (.+) ]]; then
+                MSG="${BASH_REMATCH[1]}"
+                ISSUES=$(echo "$ISSUES" | jq -c --arg msg "$MSG" '. + [{file: "", line: 0, column: 0, severity: "warning", rule: "helm-lint", message: $msg}]')
+                WARNINGS=$((WARNINGS+1))
+              fi
+            done < .lint-results/helm-lint.txt
+          fi
+          TOTAL=$((ERRORS + WARNINGS))
+          jq -n \
+            --arg linter "helm" --arg version "$HELM_VERSION" --arg timestamp "$TIMESTAMP" \
+            --arg status "${{ steps.helm-lint.outcome }}" \
+            --argjson errors "$ERRORS" --argjson warnings "$WARNINGS" --argjson total "$TOTAL" \
+            --argjson issues "$ISSUES" \
+            '{linter: $linter, version: $version, timestamp: $timestamp, status: $status, summary: {errors: $errors, warnings: $warnings, total: $total}, issues: $issues}' \
+            > .lint-results/lint-report.json
 
       # JSON Linting with jq
       - name: Run JSON lint
@@ -388,6 +581,47 @@ jobs:
           if [[ ${FAILED} -gt 0 ]]; then
             echo "::error::${FAILED} JSON file(s) contain invalid syntax"
             exit 1
+          fi
+
+      - name: Generate JSON lint report
+        if: matrix.linter == 'json' && always()
+        continue-on-error: true
+        run: |
+          JQ_VERSION=$(jq --version 2>/dev/null | sed 's/jq-//' || echo "unknown")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [[ -f .lint-results/json-lint.json ]] && jq empty .lint-results/json-lint.json 2>/dev/null; then
+            jq -n \
+              --arg linter "jq" \
+              --arg version "$JQ_VERSION" \
+              --arg timestamp "$TIMESTAMP" \
+              --arg status "${{ steps.json-lint.outcome }}" \
+              --slurpfile raw .lint-results/json-lint.json '
+              ($raw[0] // []) as $issues |
+              {
+                linter: $linter,
+                version: $version,
+                timestamp: $timestamp,
+                status: $status,
+                summary: {
+                  errors: ($issues | length),
+                  warnings: 0,
+                  total: ($issues | length)
+                },
+                issues: [
+                  $issues[] | {
+                    file: .file,
+                    line: 0,
+                    column: 0,
+                    severity: "error",
+                    rule: "json-syntax",
+                    message: .error
+                  }
+                ]
+              }' > .lint-results/lint-report.json
+          else
+            jq -n --arg linter "jq" --arg version "$JQ_VERSION" --arg timestamp "$TIMESTAMP" --arg status "${{ steps.json-lint.outcome }}" \
+              '{linter: $linter, version: $version, timestamp: $timestamp, status: $status, summary: {errors: 0, warnings: 0, total: 0}, issues: []}' \
+              > .lint-results/lint-report.json
           fi
 
       # Set linter status based on which linter ran
@@ -434,7 +668,69 @@ jobs:
       helm-status: ${{ steps.collect.outputs.helm-status }}
       json-status: ${{ steps.collect.outputs.json-status }}
       overall-status: ${{ steps.collect.outputs.overall-status }}
+      lint-report: ${{ steps.combine-reports.outputs.lint-report }}
     steps:
+      - name: Download lint artifacts
+        if: always() && inputs.upload-artifact && needs.setup.outputs.has-linters == 'true'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: ${{ inputs.artifact-name }}-*
+          path: .lint-artifacts
+          merge-multiple: false
+
+      - name: Combine lint reports
+        id: combine-reports
+        if: always()
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REPORTS="[]"
+
+          # Find all lint-report.json files from downloaded artifacts
+          if [[ -d .lint-artifacts ]]; then
+            while IFS= read -r report; do
+              if jq empty "$report" 2>/dev/null; then
+                REPORTS=$(jq -c --slurpfile r "$report" '. + [$r[0]]' <<< "$REPORTS")
+              fi
+            done < <(find .lint-artifacts -name "lint-report.json" -type f 2>/dev/null)
+          fi
+
+          # Build combined report
+          COMBINED=$(jq -n \
+            --arg timestamp "$TIMESTAMP" \
+            --argjson reports "$REPORTS" '
+            {
+              timestamp: $timestamp,
+              summary: {
+                total_errors: ([$reports[].summary.errors] | add // 0),
+                total_warnings: ([$reports[].summary.warnings] | add // 0),
+                total_issues: ([$reports[].summary.total] | add // 0),
+                linters_run: ($reports | length)
+              },
+              linters: $reports
+            }')
+
+          # Output as a step output (escaped for multiline)
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "lint-report<<${EOF}" >> $GITHUB_OUTPUT
+          echo "$COMBINED" >> $GITHUB_OUTPUT
+          echo "${EOF}" >> $GITHUB_OUTPUT
+
+          # Also write to file for artifact upload
+          mkdir -p .lint-combined
+          echo "$COMBINED" > .lint-combined/lint-report.json
+          echo "Combined lint report generated with $(echo "$REPORTS" | jq length) linter(s)"
+
+      - name: Upload combined lint report
+        if: always() && inputs.upload-artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: ${{ inputs.artifact-name }}-combined
+          path: .lint-combined/lint-report.json
+          retention-days: ${{ inputs.artifact-retention-days }}
+          if-no-files-found: ignore
+
       - name: Collect Results
         id: collect
         run: |
