@@ -360,6 +360,13 @@ jobs:
               FAILED=$(grep -oE "[0-9]+ failed" .test-results/output.txt | grep -oE "[0-9]+" | head -1 2>/dev/null) || FAILED=0
               SKIPPED=$(grep -oE "[0-9]+ skipped" .test-results/output.txt | grep -oE "[0-9]+" | head -1 2>/dev/null) || SKIPPED=0
               TOTAL=$((PASSED + FAILED + SKIPPED))
+            elif grep -qE "^# tests [0-9]+" .test-results/output.txt; then
+              # Node.js built-in test runner (TAP format)
+              PASSED=$(grep -oE "^# pass [0-9]+" .test-results/output.txt | grep -oE "[0-9]+" | head -1) || PASSED=0
+              FAILED=$(grep -oE "^# fail [0-9]+" .test-results/output.txt | grep -oE "[0-9]+" | head -1) || FAILED=0
+              SKIPPED=$(grep -oE "^# skipped [0-9]+" .test-results/output.txt | grep -oE "[0-9]+" | head -1) || SKIPPED=0
+              TOTAL=$(grep -oE "^# tests [0-9]+" .test-results/output.txt | grep -oE "[0-9]+" | head -1) || TOTAL=0
+              DURATION=$(grep -oE "^# duration_ms [0-9]+" .test-results/output.txt | grep -oE "[0-9]+" | head -1 | xargs -I{} echo "{}ms") || DURATION=""
             fi
           fi
 
