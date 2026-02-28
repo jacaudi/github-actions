@@ -132,6 +132,8 @@ jobs:
       framework: 'custom'
 ```
 
+> **Node.js built-in test runner:** When using `test-framework: custom` with `node --test`, TAP output is automatically parsed and pass/fail/skipped counts are reflected in the job step summary.
+
 **Inputs:**
 
 | Input | Type | Default | Description |
