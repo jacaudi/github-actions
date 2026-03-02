@@ -75,21 +75,27 @@ jobs:
 
       - name: Run Trivy filesystem scan
         id: trivy
+        env:
+          WORKING_DIR: ${{ inputs.working-directory }}
+          SCANNERS: ${{ inputs.scanners }}
+          SEVERITY: ${{ inputs.severity }}
+          TRIVY_VERSION: ${{ inputs.trivy-version }}
+          IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
         run: |
           set +e
 
           IGNORE_FLAG=""
-          if [[ "${{ inputs.ignore-unfixed }}" == "true" ]]; then
+          if [[ "${IGNORE_UNFIXED}" == "true" ]]; then
             IGNORE_FLAG="--ignore-unfixed"
           fi
 
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/work" \
             -w /work \
-            aquasec/trivy:${{ inputs.trivy-version }} \
-            fs "${{ inputs.working-directory }}" \
-            --scanners "${{ inputs.scanners }}" \
-            --severity "${{ inputs.severity }}" \
+            "aquasec/trivy:${TRIVY_VERSION}" \
+            fs "${WORKING_DIR}" \
+            --scanners "${SCANNERS}" \
+            --severity "${SEVERITY}" \
             --format json \
             --output meta.json \
             --exit-code 0 \
@@ -126,19 +132,25 @@ jobs:
 
       - name: Generate SARIF output
         if: inputs.upload-sarif == true
+        env:
+          WORKING_DIR: ${{ inputs.working-directory }}
+          SCANNERS: ${{ inputs.scanners }}
+          SEVERITY: ${{ inputs.severity }}
+          TRIVY_VERSION: ${{ inputs.trivy-version }}
+          IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
         run: |
           IGNORE_FLAG=""
-          if [[ "${{ inputs.ignore-unfixed }}" == "true" ]]; then
+          if [[ "${IGNORE_UNFIXED}" == "true" ]]; then
             IGNORE_FLAG="--ignore-unfixed"
           fi
 
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/work" \
             -w /work \
-            aquasec/trivy:${{ inputs.trivy-version }} \
-            fs "${{ inputs.working-directory }}" \
-            --scanners "${{ inputs.scanners }}" \
-            --severity "${{ inputs.severity }}" \
+            "aquasec/trivy:${TRIVY_VERSION}" \
+            fs "${WORKING_DIR}" \
+            --scanners "${SCANNERS}" \
+            --severity "${SEVERITY}" \
             --format sarif \
             --output code-scan.sarif \
             --exit-code 0 \
@@ -146,7 +158,7 @@ jobs:
 
       - name: Upload SARIF
         if: inputs.upload-sarif == true && hashFiles('code-scan.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: code-scan.sarif
 
