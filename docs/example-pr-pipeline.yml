@@ -1,0 +1,47 @@
+# PR / MR pipeline
+# Runs on pull requests targeting main.
+# Stages 1-4: code analysis + build + test + scan.
+name: CI (PR)
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+jobs:
+  code-scan:
+    uses: jacaudi/github-actions/.github/workflows/code-scan.yml@main
+    with:
+      severity: 'HIGH,CRITICAL'
+
+  build-artifact:
+    needs: [code-scan]
+    uses: jacaudi/github-actions/.github/workflows/docker-build.yml@main
+    with:
+      image-name: ${{ github.repository }}
+      push: true
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  test-artifact:
+    needs: [build-artifact]
+    uses: jacaudi/github-actions/.github/workflows/image-validate.yml@main
+    with:
+      image-ref: ${{ needs.build-artifact.outputs.image-ref }}
+      command: 'echo "Image OK" && exit 0'  # replace with real smoke test
+
+  scan-artifact:
+    needs: [build-artifact]
+    uses: jacaudi/github-actions/.github/workflows/image-scan.yml@main
+    with:
+      image-ref: ${{ needs.build-artifact.outputs.image-ref }}
+      severity: 'HIGH,CRITICAL'
+
+  pipeline-summary:
+    needs: [code-scan, build-artifact, test-artifact, scan-artifact]
+    if: always()
+    uses: jacaudi/github-actions/.github/workflows/pipeline-summary.yml@main

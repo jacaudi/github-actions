@@ -21,6 +21,7 @@ permissions:
   packages: write
   issues: write
   pull-requests: write
+  security-events: write
 
 jobs:
   # ===========================================================================
@@ -34,6 +35,16 @@ jobs:
       yamllint-config: .yamllint.yml
       # Workflows are YAML files, so we lint them
       # No other linters needed for a workflows-only repo
+
+  # ===========================================================================
+  # Stage 1b: Code Scan
+  # ===========================================================================
+  code-scan:
+    name: Code Scan
+    uses: ./.github/workflows/code-scan.yml
+    with:
+      severity: 'HIGH,CRITICAL'
+      exit-code: 0
 
   # ===========================================================================
   # Stage 2: Semantic Release (auto-version, tag, and release on main branch)
@@ -52,58 +63,10 @@ jobs:
       app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
   # ===========================================================================
-  # Pipeline Summary
+  # Pipeline Summary (always runs last)
   # ===========================================================================
-  summary:
-    name: Pipeline Report
-    needs: [lint, release]
-    runs-on: ubuntu-latest
-    if: always() && github.event_name == 'push'
-    steps:
-      - name: Pipeline Summary
-        run: |
-          echo "## GitHub Actions CI/CD Pipeline" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Stage results
-          echo "### Pipeline Stages" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-
-          # Lint
-          if [[ "${{ needs.lint.result }}" == "success" ]]; then
-            echo "| Lint | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Lint | :x: ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Release
-          RELEASED="${{ needs.release.outputs.new-release-published }}"
-          VERSION="${{ needs.release.outputs.new-release-version }}"
-          if [[ "${{ needs.release.result }}" == "skipped" ]]; then
-            echo "| Release | :fast_forward: Skipped (PR) |" >> $GITHUB_STEP_SUMMARY
-          elif [[ "$RELEASED" == "true" ]]; then
-            echo "| Release | :rocket: ${VERSION} |" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ needs.release.result }}" == "success" ]]; then
-            echo "| Release | :information_source: No release needed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Release | :x: ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Release details
-          if [[ "$RELEASED" == "true" ]]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Release Details" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- **Version:** \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Release:** [View on GitHub](https://github.com/${{ github.repository }}/releases/tag/${VERSION})" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### Usage" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Reference this release in your workflows:" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
-            echo "uses: ${{ github.repository }}/.github/workflows/lint.yml@${VERSION}" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          fi
+  pipeline-summary:
+    name: Pipeline Summary
+    needs: [lint, code-scan, release]
+    if: always()
+    uses: ./.github/workflows/pipeline-summary.yml
