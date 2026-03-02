@@ -202,6 +202,41 @@ jobs:
             echo "| Docker Args | \`${{ inputs.docker-args }}\` |" >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Write block metadata
+        if: always()
+        run: |
+          STATUS="${{ steps.result.outputs.status }}"
+          if [[ -z "${STATUS}" ]]; then STATUS="failed"; fi
+          EXIT_CODE="${{ steps.run.outputs.exit-code }}"
+          if ! [[ "${EXIT_CODE}" =~ ^[0-9]+$ ]]; then EXIT_CODE=1; fi
+          jq -n \
+            --arg     block             "test-artifact" \
+            --arg     status            "${STATUS}" \
+            --arg     timestamp         "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg     image_ref         "${{ inputs.image-ref }}" \
+            --arg     command           "${{ inputs.command }}" \
+            --arg     shell_entrypoint  "${{ inputs.shell }}" \
+            --argjson exit_code         "${EXIT_CODE}" \
+            --arg     output            "${{ steps.run.outputs.output }}" \
+            '{
+              block:            $block,
+              status:           $status,
+              timestamp:        $timestamp,
+              image_ref:        $image_ref,
+              command:          $command,
+              shell_entrypoint: $shell_entrypoint,
+              exit_code:        $exit_code,
+              output:           $output
+            }' > meta.json
+
+      - name: Upload block metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-meta-test-artifact
+          path: meta.json
+          retention-days: 30
+
       - name: Fail on Validation Failure
         if: steps.result.outputs.status == 'failed'
         run: |
