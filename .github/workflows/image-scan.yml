@@ -87,7 +87,7 @@ on:
         description: 'Runner label to use'
         required: false
         type: string
-        default: 'ubuntu-latest'
+        default: 'ubuntu-24.04'
 
     secrets:
       registry-username:
@@ -126,11 +126,11 @@ jobs:
       packages: read  # For pulling private GHCR images
       security-events: write  # For SARIF upload
     outputs:
-      vulnerabilities-found: ${{ steps.analyze.outputs.vulnerabilities-found }}
-      critical-count: ${{ steps.analyze.outputs.critical-count }}
-      high-count: ${{ steps.analyze.outputs.high-count }}
-      medium-count: ${{ steps.analyze.outputs.medium-count }}
-      low-count: ${{ steps.analyze.outputs.low-count }}
+      vulnerabilities-found: ${{ steps.trivy.outputs.vulnerabilities-found }}
+      critical-count: ${{ steps.trivy.outputs.critical }}
+      high-count: ${{ steps.trivy.outputs.high }}
+      medium-count: ${{ steps.trivy.outputs.medium }}
+      low-count: ${{ steps.trivy.outputs.low }}
       scan-status: ${{ steps.result.outputs.status }}
     steps:
       - name: Determine Image Reference and Registry
@@ -179,54 +179,61 @@ jobs:
           username: ${{ secrets.registry-username || github.actor }}
           password: ${{ secrets.registry-password || github.token }}
 
-      - name: Run Trivy Vulnerability Scanner
+      - name: Run Trivy image scan
         id: trivy
-        uses: aquasecurity/trivy-action@0.34.1
-        with:
-          image-ref: ${{ steps.image.outputs.ref }}
-          format: 'json'
-          output: 'trivy-results.json'
-          severity: ${{ inputs.severity }}
-          ignore-unfixed: ${{ inputs.ignore-unfixed }}
-          vuln-type: ${{ inputs.vuln-type }}
-          scanners: ${{ inputs.scanners }}
-          timeout: ${{ inputs.timeout }}
-          exit-code: '0'  # Don't fail yet, we'll analyze first
-        env:
-          TRIVY_VERSION: ${{ inputs.trivy-version }}
-
-      - name: Analyze Results
-        id: analyze
         run: |
-          if [[ ! -f trivy-results.json ]]; then
-            echo "No scan results found"
-            echo "vulnerabilities-found=false" >> $GITHUB_OUTPUT
-            echo "critical-count=0" >> $GITHUB_OUTPUT
-            echo "high-count=0" >> $GITHUB_OUTPUT
-            echo "medium-count=0" >> $GITHUB_OUTPUT
-            echo "low-count=0" >> $GITHUB_OUTPUT
-            exit 0
+          set +e
+
+          IGNORE_UNFIXED_FLAG=""
+          if [[ "${{ inputs.ignore-unfixed }}" == "true" ]]; then
+            IGNORE_UNFIXED_FLAG="--ignore-unfixed"
           fi
 
-          # Count vulnerabilities by severity
-          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-results.json 2>/dev/null || echo "0")
-          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-results.json 2>/dev/null || echo "0")
-          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' trivy-results.json 2>/dev/null || echo "0")
-          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' trivy-results.json 2>/dev/null || echo "0")
+          VULN_TYPE_FLAG=""
+          if [[ -n "${{ inputs.vuln-type }}" ]]; then
+            VULN_TYPE_FLAG="--vuln-type ${{ inputs.vuln-type }}"
+          fi
+
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/out" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e TRIVY_USERNAME="${{ secrets.registry-username || github.actor }}" \
+            -e TRIVY_PASSWORD="${{ secrets.registry-password || github.token }}" \
+            aquasec/trivy:0.58.1 \
+            image \
+            --scanners "${{ inputs.scanners }}" \
+            --severity "${{ inputs.severity }}" \
+            --format json \
+            --output /out/meta.json \
+            --timeout "${{ inputs.timeout }}" \
+            ${IGNORE_UNFIXED_FLAG} \
+            ${VULN_TYPE_FLAG} \
+            "${{ steps.image.outputs.ref }}"
+
+          TRIVY_EXIT=$?
+
+          if [[ -f meta.json ]]; then
+            CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' meta.json 2>/dev/null || echo 0)
+            HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' meta.json 2>/dev/null || echo 0)
+            MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' meta.json 2>/dev/null || echo 0)
+            LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="LOW")] | length' meta.json 2>/dev/null || echo 0)
+          else
+            CRITICAL=0; HIGH=0; MEDIUM=0; LOW=0
+            echo '{"SchemaVersion":2,"ArtifactName":"${{ steps.image.outputs.ref }}","ArtifactType":"container_image","Results":[]}' > meta.json
+          fi
+
+          echo "critical=${CRITICAL}"    >> $GITHUB_OUTPUT
+          echo "high=${HIGH}"            >> $GITHUB_OUTPUT
+          echo "medium=${MEDIUM}"        >> $GITHUB_OUTPUT
+          echo "low=${LOW}"              >> $GITHUB_OUTPUT
+          echo "exit-code=${TRIVY_EXIT}" >> $GITHUB_OUTPUT
+
           TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-
-          echo "critical-count=$CRITICAL" >> $GITHUB_OUTPUT
-          echo "high-count=$HIGH" >> $GITHUB_OUTPUT
-          echo "medium-count=$MEDIUM" >> $GITHUB_OUTPUT
-          echo "low-count=$LOW" >> $GITHUB_OUTPUT
-
           if [[ $TOTAL -gt 0 ]]; then
             echo "vulnerabilities-found=true" >> $GITHUB_OUTPUT
           else
             echo "vulnerabilities-found=false" >> $GITHUB_OUTPUT
           fi
-
-          echo "Found: $CRITICAL critical, $HIGH high, $MEDIUM medium, $LOW low vulnerabilities"
 
       - name: Generate Table Output
         if: inputs.output-format == 'table'
@@ -235,7 +242,7 @@ jobs:
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v $(pwd):/output \
-            aquasec/trivy:${{ inputs.trivy-version != 'latest' && inputs.trivy-version || 'latest' }} \
+            aquasec/trivy:0.58.1 \
             image \
             --severity "${{ inputs.severity }}" \
             --format table \
@@ -243,18 +250,26 @@ jobs:
             "${{ steps.image.outputs.ref }}" \
             | tee trivy-table.txt || true
 
-      - name: Generate SARIF Output
+      - name: Generate SARIF output
         if: inputs.upload-sarif
-        uses: aquasecurity/trivy-action@0.34.1
-        with:
-          image-ref: ${{ steps.image.outputs.ref }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: ${{ inputs.severity }}
-          ignore-unfixed: ${{ inputs.ignore-unfixed }}
-          vuln-type: ${{ inputs.vuln-type }}
-          scanners: ${{ inputs.scanners }}
-          timeout: ${{ inputs.timeout }}
+        run: |
+          IGNORE_UNFIXED_FLAG=""
+          if [[ "${{ inputs.ignore-unfixed }}" == "true" ]]; then
+            IGNORE_UNFIXED_FLAG="--ignore-unfixed"
+          fi
+
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/out" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e TRIVY_USERNAME="${{ secrets.registry-username || github.actor }}" \
+            -e TRIVY_PASSWORD="${{ secrets.registry-password || github.token }}" \
+            aquasec/trivy:0.58.1 \
+            image \
+            --format sarif \
+            --output /out/trivy-results.sarif \
+            --timeout "${{ inputs.timeout }}" \
+            ${IGNORE_UNFIXED_FLAG} \
+            "${{ steps.image.outputs.ref }}" || true
 
       - name: Upload SARIF to GitHub Security
         if: inputs.upload-sarif && hashFiles('trivy-results.sarif') != ''
@@ -270,17 +285,25 @@ jobs:
         with:
           name: ${{ inputs.artifact-name }}
           path: |
-            trivy-results.json
+            meta.json
             trivy-results.sarif
             trivy-table.txt
           retention-days: ${{ inputs.artifact-retention-days }}
           if-no-files-found: ignore
 
+      - name: Upload block metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-meta-scan-artifact
+          path: meta.json
+          retention-days: 30
+
       - name: Determine Result
         id: result
         run: |
-          CRITICAL="${{ steps.analyze.outputs.critical-count }}"
-          HIGH="${{ steps.analyze.outputs.high-count }}"
+          CRITICAL="${{ steps.trivy.outputs.critical }}"
+          HIGH="${{ steps.trivy.outputs.high }}"
           EXIT_CODE="${{ inputs.exit-code }}"
           SEVERITY="${{ inputs.severity }}"
 
@@ -309,13 +332,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           STATUS="${{ steps.result.outputs.status }}"
-          CRITICAL="${{ steps.analyze.outputs.critical-count }}"
-          HIGH="${{ steps.analyze.outputs.high-count }}"
-          MEDIUM="${{ steps.analyze.outputs.medium-count }}"
-          LOW="${{ steps.analyze.outputs.low-count }}"
+          CRITICAL="${{ steps.trivy.outputs.critical }}"
+          HIGH="${{ steps.trivy.outputs.high }}"
+          MEDIUM="${{ steps.trivy.outputs.medium }}"
+          LOW="${{ steps.trivy.outputs.low }}"
 
           if [[ "$STATUS" == "passed" ]]; then
-            if [[ "${{ steps.analyze.outputs.vulnerabilities-found }}" == "true" ]]; then
+            if [[ "${{ steps.trivy.outputs.vulnerabilities-found }}" == "true" ]]; then
               echo ":warning: **Scan completed with findings**" >> $GITHUB_STEP_SUMMARY
             else
               echo ":white_check_mark: **No vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
