@@ -324,3 +324,44 @@ jobs:
             echo "- [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.release.outputs.new-release-version }})" >> $GITHUB_STEP_SUMMARY
             echo "- [View Tag](https://github.com/${{ github.repository }}/tree/${{ steps.release.outputs.new-release-version }})" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Write block metadata
+        if: always()
+        run: |
+          STATUS="passed"
+          if [[ "${{ job.status }}" != "success" ]]; then
+            STATUS="failed"
+          fi
+          PUBLISHED="${{ steps.release.outputs.new-release-published }}"
+          if [[ "${PUBLISHED}" == "true" ]]; then PUBLISHED_BOOL=true; else PUBLISHED_BOOL=false; fi
+          jq -n \
+            --arg block "semantic-release" \
+            --arg status "${STATUS}" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson new_release_published "${PUBLISHED_BOOL}" \
+            --arg version "${{ steps.release.outputs.new-release-version }}" \
+            --arg major_version "${{ steps.release.outputs.new-release-major-version }}" \
+            --arg minor_version "${{ steps.release.outputs.new-release-minor-version }}" \
+            --arg patch_version "${{ steps.release.outputs.new-release-patch-version }}" \
+            --arg git_tag "${{ steps.release.outputs.new-release-git-tag }}" \
+            --arg git_head "${{ steps.release.outputs.new-release-git-head }}" \
+            '{
+              block: $block,
+              status: $status,
+              timestamp: $timestamp,
+              new_release_published: $new_release_published,
+              version: $version,
+              major_version: $major_version,
+              minor_version: $minor_version,
+              patch_version: $patch_version,
+              git_tag: $git_tag,
+              git_head: $git_head
+            }' > meta.json
+
+      - name: Upload block metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-meta-semantic-release
+          path: meta.json
+          retention-days: 30
