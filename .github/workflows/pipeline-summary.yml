@@ -1,0 +1,131 @@
+name: Pipeline Summary
+# Lego block: Collector — always runs last in any E2E pipeline
+# Downloads all pipeline-meta-* artifacts and merges them into
+# a single pipeline-metadata.json artifact.
+#
+# Add to every E2E pipeline with:
+#   pipeline-summary:
+#     needs: [all, other, blocks]
+#     if: always()
+#     uses: ./.github/workflows/pipeline-summary.yml
+#
+# Emits: pipeline-metadata artifact (retention: 90 days)
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'Runner label'
+        required: false
+        type: string
+        default: 'ubuntu-24.04'
+    outputs:
+      status:
+        description: 'pipeline-metadata artifact upload status'
+        value: ${{ jobs.collect.outputs.status }}
+
+jobs:
+  collect:
+    name: Collect Pipeline Metadata
+    runs-on: ${{ inputs.runs-on }}
+    if: always()
+    outputs:
+      status: ${{ steps.merge.outputs.status }}
+    steps:
+      - name: Download all block metadata artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: pipeline-meta-*
+          merge-multiple: false
+          path: ./meta-artifacts
+
+      - name: Merge metadata
+        id: merge
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, pathlib
+          from datetime import datetime, timezone
+
+          meta_dir   = pathlib.Path("./meta-artifacts")
+          timestamp  = datetime.now(timezone.utc).isoformat()
+
+          expected_blocks = [
+              "code-scan",
+              "build-artifact",
+              "test-artifact",
+              "scan-artifact",
+              "release-gate",
+              "semantic-release",
+              "helm-publish",
+              "webhook",
+          ]
+
+          merged = {
+              "pipeline_id":  os.environ.get("GITHUB_RUN_ID",     "unknown"),
+              "run_number":   os.environ.get("GITHUB_RUN_NUMBER",  "unknown"),
+              "repository":   os.environ.get("GITHUB_REPOSITORY",  "unknown"),
+              "commit":       os.environ.get("GITHUB_SHA",          "unknown"),
+              "ref":          os.environ.get("GITHUB_REF",          "unknown"),
+              "workflow":     os.environ.get("GITHUB_WORKFLOW",     "unknown"),
+              "timestamp":    timestamp,
+              "blocks":       {},
+          }
+
+          collected = 0
+          for block in expected_blocks:
+              artifact_dir = meta_dir / f"pipeline-meta-{block}"
+              meta_file    = artifact_dir / "meta.json"
+              if meta_file.exists():
+                  merged["blocks"][block] = json.loads(meta_file.read_text())
+                  collected += 1
+              else:
+                  merged["blocks"][block] = {"status": "did-not-run"}
+
+          pathlib.Path("pipeline-metadata.json").write_text(
+              json.dumps(merged, indent=2)
+          )
+          print(f"Collected {collected}/{len(expected_blocks)} blocks")
+          PYEOF
+          echo "status=passed" >> $GITHUB_OUTPUT
+
+      - name: Upload pipeline metadata
+        uses: actions/upload-artifact@v7
+        with:
+          name: pipeline-metadata
+          path: pipeline-metadata.json
+          retention-days: 90
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## Pipeline Metadata" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Block | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          python3 - <<'PYEOF'
+          import json, pathlib, os
+
+          f = pathlib.Path("pipeline-metadata.json")
+          if not f.exists():
+              print("| (no metadata) | unknown |")
+              exit(0)
+
+          data = json.loads(f.read_text())
+          summary_file = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+
+          status_icons = {
+              "passed":      ":white_check_mark: passed",
+              "approved":    ":white_check_mark: approved",
+              "failed":      ":x: failed",
+              "did-not-run": ":white_medium_square: skipped",
+          }
+
+          with open(summary_file, "a") as out:
+              for block, meta in data.get("blocks", {}).items():
+                  raw_status = meta.get("status", "unknown")
+                  display    = status_icons.get(raw_status, f":grey_question: {raw_status}")
+                  out.write(f"| {block} | {display} |\n")
+
+          print("Summary written")
+          PYEOF
