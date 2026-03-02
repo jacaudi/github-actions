@@ -360,19 +360,29 @@ jobs:
           if [[ "${{ inputs.trigger-workflow }}" == "true" ]]; then
             MODE="workflow_dispatch"
           fi
-          RESPONSE_CODE="${{ steps.webhook.outputs.response-code || 0 }}"
-          cat > meta.json <<EOF
-          {
-            "block": "webhook",
-            "status": "${STATUS}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "mode": "${MODE}",
-            "response_code": ${RESPONSE_CODE:-0},
-            "target_repo": "${{ inputs.trigger-repo }}",
-            "target_workflow": "${{ inputs.trigger-workflow-id }}",
-            "release_tag": "${{ inputs.release-tag }}"
-          }
-          EOF
+          RESPONSE_CODE="${{ steps.webhook.outputs.response-code }}"
+          if ! [[ "${RESPONSE_CODE}" =~ ^[0-9]+$ ]]; then
+            RESPONSE_CODE=0
+          fi
+          jq -n \
+            --arg   block           "webhook" \
+            --arg   status          "${STATUS}" \
+            --arg   timestamp       "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg   mode            "${MODE}" \
+            --argjson response_code "${RESPONSE_CODE}" \
+            --arg   target_repo     "${{ inputs.trigger-repo }}" \
+            --arg   target_workflow "${{ inputs.trigger-workflow-id }}" \
+            --arg   release_tag     "${{ inputs.release-tag }}" \
+            '{
+              block:           $block,
+              status:          $status,
+              timestamp:       $timestamp,
+              mode:            $mode,
+              response_code:   $response_code,
+              target_repo:     $target_repo,
+              target_workflow: $target_workflow,
+              release_tag:     $release_tag
+            }' > meta.json
 
       - name: Upload block metadata
         if: always()
