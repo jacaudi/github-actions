@@ -1,13 +1,20 @@
 name: CI/CD Unified
-# Complete CI/CD pipeline in a single reusable workflow
-# Combines: Linting, Testing, Semantic Versioning, and Release creation
+# DEPRECATED: This monolithic workflow predates the building block pipeline architecture.
+# It does NOT emit pipeline-meta-* artifacts and does NOT integrate with pipeline-summary.
 #
-# This is the "all-in-one" option that provides a complete pipeline.
-# For modular approach, use individual workflows instead:
-#   - lint.yml
-#   - test.yml
-#   - semantic-release.yml
-#   - docker-build.yml, goreleaser.yml, etc.
+# For new projects, compose building blocks directly instead:
+#   - code-scan.yml       (Stage 1: Trivy filesystem scan)
+#   - docker-build.yml    (Stage 2: Build container image)
+#   - image-validate.yml  (Stage 3: Test artifact)
+#   - image-scan.yml      (Stage 4: Scan artifact)
+#   - release-gate.yml    (Stage 5: Manual approval)
+#   - semantic-release.yml (Stage 6: Tag and release)
+#   - pipeline-summary.yml (Collector: always runs last)
+#
+# See docs/architecture.md and docs/example-*-pipeline.yml for prescribed E2E patterns.
+#
+# This file is retained for existing callers that rely on the lint+test+release
+# convenience wrapper for non-container workflows. It will be removed in a future cleanup.
 #
 # Usage:
 #   on:

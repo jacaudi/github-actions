@@ -45,7 +45,7 @@ assert_eq() {
   local name="$1" expected="$2" actual="$3"
   if [[ "$actual" != "$expected" ]]; then
     echo "FAIL: $name: expected '$expected', got '$actual'"
-    ((ERRORS++))
+    ((ERRORS++)) || true
   else
     echo "PASS: $name = $actual"
   fi

@@ -11,7 +11,7 @@ assert_eq() {
   local name="$1" expected="$2" actual="$3"
   if [[ "$actual" != "$expected" ]]; then
     echo "FAIL: $name: expected '$expected', got '$actual'"
-    ((ERRORS++))
+    ((ERRORS++)) || true
   else
     echo "PASS: $name = $actual"
   fi
@@ -47,7 +47,7 @@ if jq empty "$TMPDIR/meta.json" 2>/dev/null; then
   echo "PASS: meta.json is valid JSON"
 else
   echo "FAIL: meta.json is not valid JSON"
-  ((ERRORS++))
+  ((ERRORS++)) || true
 fi
 
 if [[ "$ERRORS" -gt 0 ]]; then
