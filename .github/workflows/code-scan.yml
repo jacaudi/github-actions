@@ -35,6 +35,7 @@ on:
         description: 'Pinned Trivy image version'
         required: false
         type: string
+        # renovate: datasource=docker depName=aquasec/trivy
         default: '0.58.1'
       upload-sarif:
         description: 'Upload SARIF results to GitHub Security tab'

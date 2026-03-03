@@ -20,6 +20,14 @@
       "depNameTemplate": "aquasec/trivy",
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "description": "Track aquasec/trivy version in workflow input defaults (annotation pattern)",
+      "fileMatch": ["^\\.github/workflows/.+\\.yml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\n]+)\\n\\s+default: '(?<currentValue>[\\d.]+)'"
+      ],
+      "versioningTemplate": "semver"
     }
   ]
 }
