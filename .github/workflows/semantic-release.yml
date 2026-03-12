@@ -5,7 +5,7 @@ name: Semantic Release
 # Features:
 # - Native feat! syntax support for breaking changes
 # - Automatic tag creation based on Conventional Commits
-# - GitHub release creation with changelog
+# - GitHub release creation with changelog (set create-release: false for tag-only mode)
 # - Optional GitHub App authentication for triggering downstream workflows
 #
 # Usage:
