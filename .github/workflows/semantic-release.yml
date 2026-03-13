@@ -5,7 +5,7 @@ name: Semantic Release
 # Features:
 # - Native feat! syntax support for breaking changes
 # - Automatic tag creation based on Conventional Commits
-# - GitHub release creation with changelog
+# - GitHub release creation with changelog (set create-release: false for tag-only mode)
 # - Optional GitHub App authentication for triggering downstream workflows
 #
 # Usage:
@@ -41,6 +41,11 @@ on:
         required: false
         type: boolean
         default: false
+      create-release:
+        description: 'Create a GitHub Release (set false for tag-only mode)'
+        required: false
+        type: boolean
+        default: true
       hooks:
         description: 'Hooks to run (e.g., goreleaser, npm-binary-releaser, exec)'
         required: false
@@ -236,6 +241,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.token.outputs.token }}
 
+      - name: Delete GitHub Release (tag-only mode)
+        if: ${{ !inputs.create-release && !inputs.dry-run && steps.semrel.outputs.version != '' }}
+        run: gh release delete "v${{ steps.semrel.outputs.version }}" --yes
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+
       - name: Process release results
         id: release
         run: |
@@ -281,7 +292,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Status badge
-          if [[ "${{ steps.release.outputs.new-release-published }}" == "true" ]]; then
+          if [[ "${{ steps.release.outputs.new-release-published }}" == "true" && "${{ inputs.create-release }}" == "false" ]]; then
+            echo "🏷️ **Tag Created** (tag-only mode — no GitHub Release)" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ steps.release.outputs.new-release-published }}" == "true" ]]; then
             echo "🚀 **New Version Released**" >> $GITHUB_STEP_SUMMARY
           elif [[ "${{ inputs.dry-run }}" == "true" ]]; then
             echo "🧪 **Dry Run Mode** - No changes made" >> $GITHUB_STEP_SUMMARY
@@ -307,6 +320,7 @@ jobs:
           # Note: Previous version tracking removed - using action outputs directly
 
           echo "| Dry Run | ${{ inputs.dry-run }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag-Only Mode | ${{ !inputs.create-release }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Token Type | ${{ steps.token.outputs.token-type }} |" >> $GITHUB_STEP_SUMMARY
 
           # Token warning
@@ -317,7 +331,7 @@ jobs:
           fi
 
           # Release link
-          if [[ "${{ steps.release.outputs.new-release-published }}" == "true" ]]; then
+          if [[ "${{ steps.release.outputs.new-release-published }}" == "true" && "${{ inputs.create-release }}" != "false" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

@@ -381,6 +381,21 @@ jobs:
       dry-run: true
 ```
 
+**Tag-Only Mode (no GitHub Release):**
+
+```yaml
+jobs:
+  release:
+    uses: jacaudi/github-actions/.github/workflows/semantic-release.yml@main
+    with:
+      create-release: false
+      changelog-file: 'CHANGELOG.md'  # optional: still generates a changelog
+      use-github-app: true
+    secrets:
+      app-id: ${{ secrets.APP_ID }}
+      app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
+```
+
 **With Hooks (e.g., GoReleaser):**
 
 ```yaml
@@ -403,6 +418,7 @@ jobs:
 | `allow-initial-development-versions` | boolean | `true` | Allow versions < 1.0.0 |
 | `changelog-file` | string | `''` | Path to changelog file (empty = no file) |
 | `prerelease` | boolean | `false` | Mark release as prerelease |
+| `create-release` | boolean | `true` | Create a GitHub Release in addition to the git tag. Set to `false` for tag-only mode — the workflow still creates the tag and changelog but skips the GitHub Release. |
 | `hooks` | string | `''` | Hooks to run (e.g., goreleaser, npm-binary-releaser) |
 | `config-file` | string | `''` | Path to .semrelrc config file |
 | `validate-config` | boolean | `true` | Validate .semrelrc JSON syntax before release |
