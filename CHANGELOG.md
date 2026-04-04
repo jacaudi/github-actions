@@ -1,3 +1,10 @@
+## 0.15.1 (2026-04-04)
+
+#### Bug Fixes
+
+* add changelog-file input to ci.yml semantic release job (943c1216)
+
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
