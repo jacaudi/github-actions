@@ -1,3 +1,16 @@
+## 0.15.2 (2026-04-05)
+
+#### Bug Fixes
+
+* changelog commit should not appear in release notes ([80167021](https://github.com/jacaudi/github-actions/commit/80167021db60adecd7835c5362ae9b524288567b))
+
+#### Documentation
+
+* conform v0.15.0 and v0.15.1 changelog entries to semrel format ([591f50f4](https://github.com/jacaudi/github-actions/commit/591f50f4b2e01760b6c871bd39aff52cc1cede6c))
+* update README, architecture, changelog, and add linked commit hashes ([83b880bb](https://github.com/jacaudi/github-actions/commit/83b880bb97bc93146aacf956ed2fb76594fabc09))
+* update changelog for v0.15.1 [skip ci] ([68cc2464](https://github.com/jacaudi/github-actions/commit/68cc24647b4950fcbe8b7d8a999e5cf9ec02a09b))
+
+
 # Changelog
 
 ## [v0.15.1](https://github.com/jacaudi/github-actions/releases/tag/v0.15.1) - 2026-04-04
