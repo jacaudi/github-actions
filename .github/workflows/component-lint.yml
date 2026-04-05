@@ -267,7 +267,12 @@ jobs:
         if: matrix.linter == 'go' && always()
         continue-on-error: true
         run: |
-          golangci-lint run --out-format json ${{ inputs.golangci-lint-args }} > .lint-results/golangci-lint.json 2>&1 || true
+          # golangci-lint v2 removed --out-format in favor of --output.json.path
+          if golangci-lint version 2>&1 | grep -qE 'version v?2\.'; then
+            golangci-lint run --output.json.path stdout ${{ inputs.golangci-lint-args }} > .lint-results/golangci-lint.json 2>&1 || true
+          else
+            golangci-lint run --out-format json ${{ inputs.golangci-lint-args }} > .lint-results/golangci-lint.json 2>&1 || true
+          fi
 
       # Shell Linting with ShellCheck
       - name: Run ShellCheck
