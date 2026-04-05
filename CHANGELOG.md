@@ -1,3 +1,10 @@
+## 0.15.5 (2026-04-05)
+
+#### Bug Fixes
+
+* support golangci-lint v2 output flag syntax in JSON save step ([af5736e0](https://github.com/jacaudi/github-actions/commit/af5736e0a94b69d6b4d2c89ba355090322c38187))
+
+
 ## 0.15.4 (2026-04-05)
 
 #### Bug Fixes
