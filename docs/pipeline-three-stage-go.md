@@ -122,7 +122,7 @@ Based on [jacaudi/nextdns-operator](https://github.com/jacaudi/nextdns-operator)
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `pr.yml` | Pull request opened/updated | Fast validation feedback |
-| `ci.yml` | Push to `main` | Lint, test, manual approval, semantic-release (bump + changelog + tag) |
+| `ci.yml` | Push to `main` | Lint, test, semantic-release (bump + changelog + tag); optional manual approval gate |
 | `release.yml` | Tag `v*` created | Build and publish artifacts |
 
 ```
@@ -130,7 +130,7 @@ PR opened -----> pr.yml (lint, test, verify, build)
 
 Push to main --> ci.yml (lint, test)
                                 |
-                          MANUAL APPROVAL
+                    (optional) MANUAL APPROVAL
                           reviewer approves
                                 |
                          ci.yml (semantic-release)
@@ -141,7 +141,9 @@ Push to main --> ci.yml (lint, test)
                         release.yml (container, helm)
 ```
 
-The key difference from a two-stage pipeline: CI and Release are **decoupled**. After lint and test pass, the CI workflow **pauses for manual approval**. Once a reviewer approves, semantic-release bumps version numbers in tracked files, generates a changelog, commits everything, and creates a tag. The tag event triggers the release workflow automatically. This requires a **GitHub App token** -- tags created by `GITHUB_TOKEN` don't trigger other workflows.
+The key difference from a two-stage pipeline: CI and Release are **decoupled**. After lint and test pass, semantic-release bumps version numbers in tracked files, generates a changelog, commits everything, and creates a tag. The tag event triggers the release workflow automatically. This requires a **GitHub App token** -- tags created by `GITHUB_TOKEN` don't trigger other workflows.
+
+An optional **manual approval gate** can be inserted between test and semantic-release (see [Approve Release](#approve-release-optional) below). It is **disabled by default** in the example templates -- enable it for apps with production deployments or multi-maintainer repos, and leave it off for libraries and solo repos where the only thing past the gate is a tag push.
 
 ### Versioning with semantic-release
 
@@ -734,7 +736,7 @@ container-arm64:
 
 ## CI (`ci.yml`)
 
-Runs on push to `main`. Validates the code, waits for manual approval, then bumps version files, generates changelog, and creates a semantic version tag.
+Runs on push to `main`. Validates the code, then bumps version files, generates changelog, and creates a semantic version tag. An optional manual approval gate can be enabled between test and semantic-release.
 
 ```
 +-----------------------------------------------------+
@@ -752,6 +754,8 @@ Runs on push to `main`. Validates the code, waits for manual approval, then bump
                +---------------------+
                |  MANUAL APPROVAL    |
                |  "release" env      |
+               |  (optional, off by  |
+               |   default)          |
                +---------------------+
                           |
                           v
@@ -796,9 +800,13 @@ Same linters as the PR workflow (YAML, Helm, Go). See [PR Lint](#lint) above for
 
 Same Go test + coverage as the PR workflow. See [PR Test](#test) above for step details.
 
-#### Approve Release
+#### Approve Release (optional)
 
-Gate job that pauses the workflow for manual approval after lint and test pass. Uses a [GitHub Environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) named `release` with required reviewers. The workflow enters a **"Waiting for review"** state in the Actions UI until a designated reviewer clicks **"Approve"**.
+Optional gate job that pauses the workflow for manual approval after lint and test pass. It is **commented out in the example template** ([docs/example-three-stage-ci.yml](example-three-stage-ci.yml)) and disabled by default -- uncomment it (and add `approve` back to the release job's `needs:`) to turn it on.
+
+**When to enable it:** apps with production deployments, anything with real blast radius, or multi-maintainer repos where a second set of eyes before a release adds value. **When to skip it:** libraries, internal-only tools, and single-maintainer repos, where the only thing on the other side of the gate is a tag push and the `release` environment is just one more piece of GitHub config to bootstrap.
+
+When enabled, it uses a [GitHub Environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) named `release` with required reviewers. The workflow enters a **"Waiting for review"** state in the Actions UI until a designated reviewer clicks **"Approve"**.
 
 ```yaml
 approve:
@@ -820,11 +828,11 @@ approve:
 
 #### Semantic Release
 
-Runs after approval. Calls the `component-semantic-release.yml` reusable workflow which runs `npx semantic-release` to analyze conventional commits, create a tag + GitHub Release, update the changelog, and commit it back.
+Runs after lint and test (or after `approve`, if the optional gate is enabled). Calls the `component-semantic-release.yml` reusable workflow which runs `npx semantic-release` to analyze conventional commits, create a tag + GitHub Release, update the changelog, and commit it back.
 
 ```yaml
 release:
-  needs: [approve]
+  needs: [lint, test]  # add `approve` here if the optional gate is enabled
   uses: jacaudi/github-actions/.github/workflows/component-semantic-release.yml@main
   permissions:
     contents: write
