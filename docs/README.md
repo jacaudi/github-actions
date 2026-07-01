@@ -90,6 +90,29 @@ jobs:
 
 **Step Summary:** Per-linter table with Passed/Failed/Skipped status and overall result.
 
+**Standardized lint report:** In addition to each linter's native output, the Go lint job normalizes its findings into a single machine-readable report at `.lint-results/lint-report.json` (uploaded with the lint artifacts). The report follows a linter-agnostic schema so results are parseable by both humans and AI agents regardless of which linter produced them. Schema: [`docs/schemas/lint-report.json`](schemas/lint-report.json).
+
+```json
+{
+  "linter": "golangci-lint",
+  "version": "1.55.0",
+  "timestamp": "2026-02-04T08:00:00Z",
+  "summary": { "errors": 0, "warnings": 2, "files_checked": 45 },
+  "issues": [
+    {
+      "file": "internal/controller/foo.go",
+      "line": 42,
+      "column": 10,
+      "severity": "warning",
+      "rule": "unused",
+      "message": "unused variable 'x'"
+    }
+  ]
+}
+```
+
+Each issue carries `file`, `line`, `column`, `severity` (`error`/`warning`/`info`), `rule`, and `message`. The Go linter is wired first; the same normalization pattern can be extended to the other linters, each of which already emits its native JSON/parsable output under `.lint-results/`.
+
 ---
 
 ## component-test

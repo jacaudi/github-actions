@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jacaudi/github-actions/docs/schemas/lint-report.json",
+  "title": "standardized lint report",
+  "description": "Normalized lint results emitted by the component-lint building block, written to .lint-results/lint-report.json and uploaded with the lint artifacts. Each linter's native output is transformed into this common shape so results are parseable by both humans and AI agents, independent of which linter produced them.",
+  "type": "object",
+  "required": ["linter", "timestamp", "summary", "issues"],
+  "properties": {
+    "linter": {
+      "type": "string",
+      "description": "Name of the linter that produced the report (e.g. golangci-lint, ruff, yamllint, shellcheck)."
+    },
+    "version": {
+      "type": "string",
+      "description": "Version of the linter, or 'unknown' if it could not be determined."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the report was generated."
+    },
+    "summary": {
+      "type": "object",
+      "description": "Aggregate counts for the run.",
+      "required": ["errors", "warnings", "files_checked"],
+      "properties": {
+        "errors": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of issues with severity 'error'."
+        },
+        "warnings": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of issues with severity 'warning'."
+        },
+        "files_checked": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of files scanned by the linter. When the linter does not report a scan count, this is the number of distinct files with reported issues."
+        }
+      },
+      "additionalProperties": true
+    },
+    "issues": {
+      "type": "array",
+      "description": "Flat list of findings. Empty when the linter reported no issues.",
+      "items": { "$ref": "#/$defs/Issue" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Issue": {
+      "type": "object",
+      "required": ["file", "line", "severity", "rule", "message"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to the file, relative to the repository root."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1-based line number of the finding, or 0 if not applicable."
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1-based column number of the finding, or 0 if not reported."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "description": "Normalized severity of the finding."
+        },
+        "rule": {
+          "type": "string",
+          "description": "Rule identifier or sub-linter that produced the finding (e.g. unused, line-length)."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable description of the finding."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

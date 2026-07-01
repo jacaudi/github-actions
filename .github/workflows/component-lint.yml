@@ -287,6 +287,44 @@ jobs:
             golangci-lint run --out-format json ${{ inputs.golangci-lint-args }} > .lint-results/golangci-lint.json 2>&1 || true
           fi
 
+      # Normalize golangci-lint output into the standardized lint report schema
+      # (docs/schemas/lint-report.json) for human + AI-agent consumption.
+      - name: Emit standardized lint report (Go)
+        if: matrix.linter == 'go' && always()
+        continue-on-error: true
+        run: |
+          TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          VER="$(golangci-lint version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          SRC=.lint-results/golangci-lint.json
+          # Fall back to an empty issue set if the linter produced no valid JSON
+          if [[ ! -s "$SRC" ]] || ! jq -e . "$SRC" >/dev/null 2>&1; then
+            echo '{"Issues":[]}' > "$SRC"
+          fi
+          jq \
+            --arg linter "golangci-lint" \
+            --arg version "${VER:-unknown}" \
+            --arg timestamp "$TS" \
+            '{
+              linter: $linter,
+              version: $version,
+              timestamp: $timestamp,
+              issues: [ (.Issues // [])[] | {
+                file: (.Pos.Filename // ""),
+                line: (.Pos.Line // 0),
+                column: (.Pos.Column // 0),
+                severity: ((.Severity // "") | if . == "" then "error" elif . == "warn" then "warning" else . end),
+                rule: (.FromLinter // "unknown"),
+                message: (.Text // "")
+              } ]
+            }
+            | .summary = {
+                errors: ([.issues[] | select(.severity == "error")] | length),
+                warnings: ([.issues[] | select(.severity == "warning")] | length),
+                files_checked: ([.issues[].file] | unique | length)
+              }' "$SRC" > .lint-results/lint-report.json
+          echo "Standardized lint report:"
+          cat .lint-results/lint-report.json
+
       # Shell Linting with ShellCheck
       - name: Run ShellCheck
         id: shell-lint
