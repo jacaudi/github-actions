@@ -15,7 +15,7 @@
 #   COVERAGE_ENABLED    - Collect coverage (default: true)
 #   COVERAGE_THRESHOLD  - Minimum coverage % (default: 0 = no gate)
 #
-# Required environment:
+# Optional environment (only if you enable the manual approval gate below):
 #   "release" with required reviewers (Settings > Environments)
 #
 # Required files:
@@ -62,26 +62,32 @@ jobs:
       test-packages: ${{ vars.TEST_PACKAGES || './...' }}
       test-args: ${{ vars.TEST_ARGS || '' }}
 
-  # ── Manual Approval Gate ───────────────────────────────────────────────────
-  # Pauses after lint + test pass. A reviewer must approve before uplift runs.
+  # ── Manual Approval Gate (OPTIONAL) ────────────────────────────────────────
+  # Disabled by default. Uncomment this job (and add `approve` to the release
+  # job's `needs:` below) to pause after lint + test until a reviewer approves.
+  # Worth it for apps with production deployments or multi-maintainer repos;
+  # unnecessary friction for libraries and solo repos where the only thing on
+  # the other side of the gate is a tag push.
   # Configure the "release" environment in Settings > Environments with
   # required reviewers.
-  approve:
-    name: Approve Release
-    needs: [lint, test]
-    runs-on: ubuntu-latest
-    environment: release
-    steps:
-      - name: Release approved
-        run: echo "Release approved, proceeding with uplift..."
+  # approve:
+  #   name: Approve Release
+  #   needs: [lint, test]
+  #   runs-on: ubuntu-latest
+  #   environment: release
+  #   steps:
+  #     - name: Release approved
+  #       run: echo "Release approved, proceeding with uplift..."
 
   # ── Semantic Release (via reusable workflow) ─────────────────────────────────
-  # Runs after approval. Calculates next semver from conventional commits,
+  # Runs after lint + test. Calculates next semver from conventional commits,
   # creates a git tag + GitHub Release, and commits the changelog.
   # The tag triggers release.yml.
   # Changelog, prerelease, and branch config are in .releaserc.json.
+  # To require manual approval first, enable the `approve` job above and change
+  # `needs:` here to `[approve]`.
   release:
-    needs: [approve]
+    needs: [lint, test]
     uses: jacaudi/github-actions/.github/workflows/component-semantic-release.yml@main
     permissions:
       contents: write

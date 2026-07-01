@@ -35,7 +35,8 @@ The recommended pipeline pattern for Go projects with containers and Helm charts
 ```
 PR -----> lint, test, verify, container build (no push)
 
-main ---> lint, test, approve, semantic-release (tag + GitHub Release + changelog)
+main ---> lint, test, semantic-release (tag + GitHub Release + changelog)
+          (optional manual approval gate between test and semantic-release)
                                     |
                                tag v1.2.3
                                     |
@@ -46,7 +47,7 @@ release -> container build + push, helm publish, pipeline summary
 | Template | Trigger | Jobs |
 |----------|---------|------|
 | [example-three-stage-pr.yml](docs/example-three-stage-pr.yml) | Pull request | lint, test, verify, container build |
-| [example-three-stage-ci.yml](docs/example-three-stage-ci.yml) | Push to main | lint, test, approve, semantic-release |
+| [example-three-stage-ci.yml](docs/example-three-stage-ci.yml) | Push to main | lint, test, semantic-release (optional approval gate) |
 | [example-three-stage-release.yml](docs/example-three-stage-release.yml) | Tag `v*` | container build, helm publish, summary |
 
 See [pipeline-three-stage-go.md](docs/pipeline-three-stage-go.md) for the full design spec.
