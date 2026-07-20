@@ -98,7 +98,7 @@ jobs:
       chart-ref: ${{ steps.chart-info.outputs.ref }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Determine chart name
         id: chart-name

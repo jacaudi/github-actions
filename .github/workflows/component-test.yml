@@ -117,7 +117,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Auto-detect framework
       - name: Detect Framework
@@ -150,7 +150,7 @@ jobs:
       # Python/pytest setup
       - name: Set up Python
         if: steps.detect.outputs.framework == 'pytest'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ inputs.python-version }}
 
@@ -175,7 +175,7 @@ jobs:
       # Go setup
       - name: Set up Go
         if: steps.detect.outputs.framework == 'go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
 
@@ -186,7 +186,7 @@ jobs:
       # Node.js/npm setup
       - name: Set up Node.js
         if: steps.detect.outputs.framework == 'npm'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
