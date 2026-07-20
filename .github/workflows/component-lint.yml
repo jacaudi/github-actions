@@ -219,7 +219,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Run setup commands (from repo root, not working-directory)
       - name: Run Setup Commands
@@ -235,7 +235,7 @@ jobs:
       # Python Linting with Ruff
       - name: Set up Python
         if: matrix.linter == 'python'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ inputs.python-version }}
 
@@ -262,7 +262,7 @@ jobs:
       # Go Linting with golangci-lint
       - name: Set up Go
         if: matrix.linter == 'go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
 
@@ -333,7 +333,7 @@ jobs:
       # Helm Linting
       - name: Set up Helm
         if: matrix.linter == 'helm'
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: 'latest'
 

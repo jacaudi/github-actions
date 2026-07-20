@@ -136,7 +136,7 @@ jobs:
       - name: Generate GitHub App Token
         id: app-token
         if: ${{ inputs.use-github-app }}
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.app-id }}
           private-key: ${{ secrets.app-private-key }}
@@ -183,7 +183,7 @@ jobs:
           GH_TOKEN: ${{ steps.token.outputs.token }}
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -225,19 +225,19 @@ jobs:
 
       - name: Set up Go
         if: ${{ inputs.go }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
 
       - name: Set up GoReleaser
         if: ${{ inputs.goreleaser }}
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           install-only: true
           version: ${{ inputs.goreleaser-version }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ inputs.node-version }}
 
